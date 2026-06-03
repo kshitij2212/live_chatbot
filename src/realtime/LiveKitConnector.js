@@ -1,0 +1,427 @@
+import {
+  Room,
+  DisconnectReason,
+  ConnectionState,
+} from '@livekit/rtc-node';
+import { AccessToken } from 'livekit-server-sdk';
+
+import { createRoomEventEmitter } from './RoomEventEmitter.js';
+import defaultBus, { Events }     from '../core/EventBus.js';
+import logger                     from '../utils/logger.js';
+import { sleep }                  from '../utils/sleep.js';
+
+const log = logger.child({ module: 'LiveKitConnector' });
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_RECONNECT_ATTEMPTS = 5;
+const DEFAULT_RECONNECT_BASE_MS  = 1_500;
+const DEFAULT_RECONNECT_MAX_MS   = 30_000;
+const DISCONNECT_TIMEOUT_MS      = 5_000;
+const CONNECT_TIMEOUT_MS         = 10_000;
+
+// ─── Terminal disconnect reasons (do not reconnect) ───────────────────────────
+
+const TERMINAL_REASONS = new Set([
+  String(DisconnectReason.CLIENT_INITIATED),
+  'CLIENT_INITIATED',
+  'intentional',
+]);
+
+// ─── Factory ──────────────────────────────────────────────────────────────────
+
+/**
+ * Creates a LiveKitConnector instance.
+ *
+ * @param {object} config
+ * @param {string} config.url              - LiveKit server WebSocket URL
+ * @param {string} config.tokenApiUrl      - API endpoint to fetch a LiveKit token
+ * @param {string} config.roomName         - Room to join
+ * @param {string} config.botIdentity      - Participant identity for the bot
+ * @param {string} [config.botDisplayName] - Human-readable display name shown in the room
+ * @param {string} [config.ownerIdentity]  - If set, audio is only captured from this participant
+ * @param {number} [config.reconnectAttempts]
+ * @param {number} [config.reconnectBaseMs]
+ * @param {number} [config.reconnectMaxMs]
+ */
+export function createLiveKitConnector(config) {
+  const {
+    url,
+    apiKey,
+    apiSecret,
+    tokenApiUrl,
+    roomName,
+    botIdentity,
+    botDisplayName    = botIdentity,
+    ownerIdentity     = null,
+    eventBus          = defaultBus,
+    reconnectAttempts = DEFAULT_RECONNECT_ATTEMPTS,
+    reconnectBaseMs   = DEFAULT_RECONNECT_BASE_MS,
+    reconnectMaxMs    = DEFAULT_RECONNECT_MAX_MS,
+  } = config;
+
+  // ── Validate required config ────────────────────────────────────────────────
+
+  for (const [key, val] of Object.entries({ url, roomName, botIdentity })) {
+    if (!val || typeof val !== 'string' || !val.trim()) {
+      throw new Error(`LiveKitConnector: missing required config field "${key}"`);
+    }
+  }
+
+  if (!tokenApiUrl && (!apiKey || !apiSecret)) {
+    throw new Error('LiveKitConnector: must provide either tokenApiUrl or both apiKey and apiSecret');
+  }
+
+  // ── Internal state ───────────────────────────────────────────────────────────
+
+  const ConnectorState = {
+    DISCONNECTED:  'disconnected',
+    CONNECTING:    'connecting',
+    CONNECTED:     'connected',
+    DISCONNECTING: 'disconnecting',
+  };
+
+  let state               = ConnectorState.DISCONNECTED;
+  let room                = null;
+  let emitter             = null;
+  let isConnected         = false;
+  let isShuttingDown      = false;
+  let reconnectCount      = 0;
+  let reconnectInProgress = false;
+  let connectPromise      = null;
+
+  const roomId = roomName;
+
+  function transitionTo(newState) {
+    log.debug({ roomId, from: state, to: newState }, 'Connector state transition');
+    state = newState;
+    isConnected = (state === ConnectorState.CONNECTED);
+  }
+
+  // ── Token fetching ────────────────────────────────────────────────────────────
+  //
+  // Fetches a fresh token from the manager's API on every connect/reconnect.
+  // This ensures the token is always valid and never expired.
+
+  async function generateToken() {
+    if (tokenApiUrl) {
+      log.debug({ roomName, botIdentity }, 'Fetching token from API');
+
+      const res = await fetch(tokenApiUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          'room-name': roomName,
+          identity:    botIdentity,
+          metadata:    { name: botDisplayName, role: 'bot' },
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`LiveKitConnector: token API error ${res.status} ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      if (!data.token) {
+        throw new Error('LiveKitConnector: token API returned no token');
+      }
+
+      log.debug({ roomName, botIdentity }, 'Token fetched successfully');
+      return data.token;
+    } else {
+      log.debug({ roomName, botIdentity }, 'Generating token locally');
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity: botIdentity,
+        name: botDisplayName,
+        metadata: JSON.stringify({ name: botDisplayName, role: 'bot' }),
+      });
+      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, canPublishData: true });
+      return await at.toJwt();
+    }
+  }
+
+  // ── Room options ──────────────────────────────────────────────────────────────
+
+  function buildRoomOptions() {
+    return {
+      autoSubscribe:  true,
+      dynacast:       false,
+      adaptiveStream: false,
+    };
+  }
+
+  // ── Core connect logic ────────────────────────────────────────────────────────
+
+  async function _doConnect() {
+    log.info({ roomId, botIdentity, url }, 'Connecting to LiveKit room');
+
+    room    = new Room(buildRoomOptions());
+    emitter = createRoomEventEmitter(room, {
+      roomId,
+      botUserId:     botIdentity,
+      ownerIdentity,
+    });
+
+    const token = await generateToken();
+
+    const connectResult = await Promise.race([
+      room.connect(url, token, { publishVideo: false }).then(() => 'connected'),
+      sleep(CONNECT_TIMEOUT_MS).then(() => 'timeout'),
+    ]);
+
+    if (connectResult === 'timeout') {
+      const timedOutRoom = room;
+      _resetRoomState();
+      transitionTo(ConnectorState.DISCONNECTED);
+      _safeDisconnectRoom(timedOutRoom);
+      throw new Error(`LiveKitConnector: connect timed out after ${CONNECT_TIMEOUT_MS}ms`);
+    }
+
+    transitionTo(ConnectorState.CONNECTED);
+    reconnectCount = 0;
+
+    log.info({ roomId, botIdentity }, 'Successfully connected to LiveKit room');
+  }
+
+  // ── Public: connect ───────────────────────────────────────────────────────────
+
+  function connect() {
+    if (state === ConnectorState.CONNECTED) {
+      log.warn({ roomId }, 'connect() called but already connected — ignoring');
+      return Promise.resolve();
+    }
+
+    if (state === ConnectorState.CONNECTING || connectPromise) {
+      log.debug({ roomId }, 'connect() called while connection in progress — reusing promise');
+      return connectPromise;
+    }
+
+    if (state === ConnectorState.DISCONNECTING) {
+      return Promise.reject(new Error('LiveKitConnector: cannot connect while disconnecting'));
+    }
+
+    isShuttingDown = false;
+    transitionTo(ConnectorState.CONNECTING);
+
+    connectPromise = _doConnect()
+      .catch(async (err) => {
+        log.error({ roomId, err }, 'Failed to connect to LiveKit room');
+        const oldRoom = room;
+        _resetRoomState();
+        transitionTo(ConnectorState.DISCONNECTED);
+        _safeDisconnectRoom(oldRoom);
+        throw err;
+      })
+      .finally(() => {
+        connectPromise = null;
+      });
+
+    return connectPromise;
+  }
+
+  // ── Public: disconnect ────────────────────────────────────────────────────────
+
+  async function disconnect() {
+    if (!room) {
+      log.warn({ roomId }, 'disconnect() called but no room instance exists');
+      return;
+    }
+
+    log.info({ roomId }, 'Disconnecting from LiveKit room');
+    isShuttingDown = true;
+    transitionTo(ConnectorState.DISCONNECTING);
+
+    const roomRef = room;
+    _resetRoomState();
+
+    try {
+      const result = await Promise.race([
+        roomRef.disconnect().then(() => 'clean'),
+        sleep(DISCONNECT_TIMEOUT_MS).then(() => 'timeout'),
+      ]);
+
+      if (result === 'timeout') {
+        log.warn(
+          { roomId, timeoutMs: DISCONNECT_TIMEOUT_MS },
+          'room.disconnect() timed out — forcing cleanup.'
+        );
+      } else {
+        log.info({ roomId }, 'Disconnected from LiveKit room cleanly');
+      }
+    } catch (err) {
+      log.warn({ roomId, err }, 'Error during room disconnect — forcing cleanup anyway');
+    } finally {
+      transitionTo(ConnectorState.DISCONNECTED);
+      eventBus.emit(Events.ROOM_DISCONNECTED, { roomId, reason: 'intentional' });
+    }
+  }
+
+  // ── Reconnect logic ───────────────────────────────────────────────────────────
+
+  async function _handleUnexpectedDisconnect(reason) {
+    if (reconnectInProgress) {
+      log.debug({ roomId }, 'Reconnect already in progress — ignoring duplicate trigger');
+      return;
+    }
+
+    reconnectInProgress = true;
+    transitionTo(ConnectorState.DISCONNECTED);
+
+    const oldRoom = room;
+    _resetRoomState();
+
+    log.warn({ roomId, reason }, 'Unexpected disconnect — starting reconnect loop');
+
+    _safeDisconnectRoom(oldRoom);
+
+    try {
+      while (reconnectCount < reconnectAttempts) {
+        if (isShuttingDown) {
+          log.info({ roomId }, 'Shutdown requested — aborting reconnect loop');
+          return;
+        }
+
+        reconnectCount++;
+
+        const baseDelay = Math.min(
+          reconnectBaseMs * 2 ** (reconnectCount - 1),
+          reconnectMaxMs
+        );
+        const jitter = Math.random() * baseDelay * 0.2;
+        const delay  = Math.round(baseDelay + jitter);
+
+        log.info(
+          { roomId, attempt: reconnectCount, maxAttempts: reconnectAttempts, delayMs: delay },
+          'Reconnect attempt scheduled'
+        );
+
+        eventBus.emit(Events.CONNECTOR_RECONNECTING, {
+          roomId,
+          attempt:     reconnectCount,
+          maxAttempts: reconnectAttempts,
+          delayMs:     delay,
+        });
+
+        await sleep(delay);
+
+        if (isShuttingDown) {
+          log.info({ roomId }, 'Shutdown requested during backoff — aborting reconnect loop');
+          return;
+        }
+
+        try {
+          await connect();
+          log.info({ roomId, reconnectCount }, 'Reconnected successfully');
+          eventBus.emit(Events.CONNECTOR_RECONNECTED, { roomId, attempt: reconnectCount });
+          reconnectCount = 0;
+          return;
+        } catch (err) {
+          log.warn({ roomId, attempt: reconnectCount, err }, 'Reconnect attempt failed');
+        }
+      }
+
+      log.error({ roomId, reconnectAttempts }, 'All reconnect attempts failed — giving up');
+      eventBus.emit(Events.CONNECTOR_FAILED, { roomId, attempts: reconnectAttempts });
+
+    } finally {
+      reconnectInProgress = false;
+    }
+  }
+
+  // ── Internal helpers ──────────────────────────────────────────────────────────
+
+  function _resetRoomState() {
+    if (emitter) {
+      emitter.detach();
+      emitter = null;
+    }
+    room = null;
+  }
+
+  function _safeDisconnectRoom(targetRoom) {
+    if (!targetRoom) return;
+
+    const handleStateChange = (newState) => {
+      if (newState === ConnectionState.CONN_CONNECTED || newState === 1) {
+        cleanupAndDisconnect();
+      }
+    };
+
+    const cleanupAndDisconnect = () => {
+      try {
+        targetRoom.off('connectionStateChanged', handleStateChange);
+        targetRoom.off('disconnected', cleanupAndDisconnect);
+      } catch {}
+      targetRoom.disconnect().catch((err) => {
+        log.warn({ roomId, err }, 'Failed to disconnect room during safe disconnect cleanup');
+      });
+    };
+
+    if (targetRoom.isConnected) {
+      cleanupAndDisconnect();
+    } else {
+      targetRoom.on('connectionStateChanged', handleStateChange);
+      targetRoom.on('disconnected', cleanupAndDisconnect);
+      targetRoom.disconnect().catch((err) => {
+        log.debug({ roomId, err }, 'Immediate disconnect call on connecting room');
+      });
+    }
+  }
+
+  // ── Bus listener ──────────────────────────────────────────────────────────────
+
+  function _onRoomDisconnected({ roomId: disconnectedRoomId, reason }) {
+    if (disconnectedRoomId !== roomId) return;
+    if (isShuttingDown) return;
+    if (TERMINAL_REASONS.has(String(reason))) {
+      log.info({ roomId, reason }, 'Terminal disconnect reason — not reconnecting');
+      return;
+    }
+    _handleUnexpectedDisconnect(reason);
+  }
+
+  eventBus.on(Events.ROOM_DISCONNECTED, _onRoomDisconnected);
+
+  // ── Public API ────────────────────────────────────────────────────────────────
+
+  return {
+    connect,
+    disconnect,
+
+    async destroy() {
+      await disconnect();
+      eventBus.off(Events.ROOM_DISCONNECTED, _onRoomDisconnected);
+      log.debug({ roomId }, 'LiveKitConnector destroyed — bus listener removed');
+    },
+
+    isConnected:      () => isConnected,
+    getConnectionState: () => room?.connectionState ?? null,
+    getRoomId:        () => roomId,
+    getRoom:          () => room,
+
+    async publishReply(text) {
+      if (!room?.localParticipant) {
+        throw new Error('LiveKitConnector: cannot publishReply — not connected to a room');
+      }
+
+      const lp = room.localParticipant;
+
+      // Modern LiveKit clients (meet.livekit.io, web SDK >= 2.x) render chat
+      // exclusively from the TextStream API on topic `lk.chat`.
+      if (typeof lp.sendText === 'function') {
+        await lp.sendText(text, { topic: 'lk.chat' });
+        log.debug({ roomId, text }, 'Reply published via sendText(lk.chat)');
+      }
+
+      // Best-effort fallback for older clients still listening on the legacy
+      // ChatMessage event.
+      if (typeof lp.sendChatMessage === 'function') {
+        try {
+          await lp.sendChatMessage(text);
+        } catch (err) {
+          log.debug({ err }, 'Legacy sendChatMessage failed (non-fatal)');
+        }
+      }
+    },
+  };
+}
