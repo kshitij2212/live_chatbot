@@ -115,10 +115,12 @@ export function createRoomEventEmitter(room, config) {
           ts:                now,
         });
 
-        // Yield to the event loop's macrotask queue. If reader.read() resolves
+        // Yield to the event loop's timer queue. If reader.read() resolves
         // synchronously because of a backlog, a tight while(await) loop will
-        // starve the event loop and OOM the process.
-        await new Promise(r => setImmediate(r));
+        // starve the event loop and OOM the process. setTimeout(..., 0) guarantees
+        // yielding through all libuv phases (I/O, check, timers) whereas
+        // setImmediate may trap execution in the check phase.
+        await new Promise(r => setTimeout(r, 0));
 
         if (frameCount % 100 === 0 && global.gc) {
           global.gc();
