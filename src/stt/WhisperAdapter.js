@@ -60,8 +60,8 @@ export function createWhisperAdapter(config) {
     formData.append('file', blob, 'utterance.wav');
     formData.append('model', MODEL);
     formData.append('response_format', 'json');
-    // Guide the model to stick to Hindi, English, and Hinglish instead of Urdu
-    formData.append('prompt', 'Please transcribe only in Hindi, English, or Hinglish. Kaise ho? I am good. Aaj kya plan hai?');
+    formData.append('language', 'hi');
+    formData.append('prompt', 'नमस्ते, आप कैसे हैं? मैं ठीक हूँ। आज आपका क्या प्लान है?');
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);

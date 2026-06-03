@@ -40,6 +40,7 @@ export class CooldownManager {
    * @param {string} roomId
    */
   async setCooldown(roomId) {
+    if (this.ttl <= 0) return;
     const key = `${KEY_PREFIX}${roomId}`;
     await this.redis.set(key, '1', 'EX', this.ttl);
     log.debug({ roomId, ttlSeconds: this.ttl }, 'Cooldown armed');

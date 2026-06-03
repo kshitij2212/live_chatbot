@@ -50,7 +50,7 @@ const MAX_ZCR_FOR_SPEECH     = 0.40;
 
 // Confirmation counters (1 frame = 30ms)
 const SPEECH_CONFIRM_FRAMES  = 6;    // 6 × 30ms = ~180ms  before declaring speech start
-const SILENCE_CONFIRM_FRAMES = 12;   // 12 × 30ms = ~360ms before declaring speech end
+const SILENCE_CONFIRM_FRAMES = 40;   // 40 × 30ms = ~1200ms (1.2s) wait before cutting off the sentence
 
 // ─── Feature extraction ───────────────────────────────────────────────────────
 

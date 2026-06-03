@@ -111,11 +111,7 @@ export function createBotRunner() {
 
     on(Events.TRANSCRIPT_READY, async ({ roomId, text, speakerId }) => {
       if (!text?.trim() || isShuttingDown) return;
-      if (text.trim().split(' ').length < 3) {
-        log.debug({ roomId, text }, 'Transcript too short — ignoring');
-        return; 
-      }
-      
+
       // Filter out common false positives from background noise
       const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay)$/i;
       if (blacklist.test(text.trim())) {
