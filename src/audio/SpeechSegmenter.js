@@ -50,8 +50,9 @@ const MAX_UTTERANCE_MS     = 15_000;
 const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;   // 500 frames
 
 // Discard utterances shorter than this — likely noise, not speech
-const MIN_UTTERANCE_MS     = 300;
-const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   // 10 frames
+const MIN_UTTERANCE_MS     = 300; // lowered from 300 to accept shorter utterances
+const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   // adjusted accordingly
+
 
 // Frames of silence to keep at the end of the utterance.
 // A natural trailing silence helps STT identify the last word correctly.
@@ -95,8 +96,10 @@ export function createSpeechSegmenter() {
   }
 
   // ─── Flush ───────────────────────────────────────────────────────────────────
-
   function flush(roomId, speakerId, ts) {
+
+    log.debug({ roomId, speakerId, ts }, '🗣️ flush() entered');
+  
     const key = getSpeakerKey(roomId, speakerId);
     const state = speakers.get(key);
     if (!state || state.frames.length === 0) return;
@@ -115,7 +118,7 @@ export function createSpeechSegmenter() {
     state.startTs        = null;
 
     if (frames.length < MIN_UTTERANCE_FRAMES) {
-      log.debug(
+      log.warn(
         { roomId, frames: frames.length, minFrames: MIN_UTTERANCE_FRAMES },
         'Utterance too short — discarded'
       );
@@ -139,6 +142,7 @@ export function createSpeechSegmenter() {
       startTs,
       endTs:      ts,
     });
+    log.debug({ roomId, speakerId }, '🟢 UTTERANCE_READY emitted');
   }
 
   // ─── VAD signal handlers ──────────────────────────────────────────────────────
@@ -166,7 +170,7 @@ export function createSpeechSegmenter() {
     log.debug({ roomId, speakerId }, 'Started capturing utterance');
   }
 
-  function onSpeechEnd({ roomId, speakerId }) {
+  function onSpeechEnd({ roomId, speakerId, ts }) {
     const key = getSpeakerKey(roomId, speakerId);
     const state = speakers.get(key);
     if (!state || !state.isCapturing) return;

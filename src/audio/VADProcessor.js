@@ -40,16 +40,16 @@ const log = logger.child({ module: 'VADProcessor' });
 
 // ─── VAD tuning constants ──────────────────────────────────────────────────────
 
-const MIN_ENERGY_THRESHOLD   = 400;   // absolute floor — never go below this
-const ADAPTIVE_MULTIPLIER    = 6;     // threshold = ambientRMS × this
+const MIN_ENERGY_THRESHOLD   = 100;   // absolute floor — lower this so normal speech passes
+const ADAPTIVE_MULTIPLIER    = 4;     // threshold = ambientRMS × this
 const CALIBRATION_FRAMES     = 33;    // ~1s of ambient measurement before VAD activates
 
 // Speech has moderate ZCR (~0.05–0.25).
-// Broadband noise has very high ZCR (>0.4).
+// Very high ZCR (>0.4) is usually white noise, typing, or 'f', 's', 'sh' alone.
 const MAX_ZCR_FOR_SPEECH     = 0.40;
 
 // Confirmation counters (1 frame = 30ms)
-const SPEECH_CONFIRM_FRAMES  = 3;    // 3 × 30ms = ~90ms  before declaring speech start
+const SPEECH_CONFIRM_FRAMES  = 6;    // 6 × 30ms = ~180ms  before declaring speech start
 const SILENCE_CONFIRM_FRAMES = 12;   // 12 × 30ms = ~360ms before declaring speech end
 
 // ─── Feature extraction ───────────────────────────────────────────────────────

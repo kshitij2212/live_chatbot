@@ -106,22 +106,17 @@ function createRingBuffer(capacity) {
     readChunk() {
       if (count < SAMPLES_PER_CHUNK) return null;
 
-      // Compute readPos: for a ring buffer with head=writePos and count items,
-      // the oldest item is at (writePos - count + capacity) % capacity
-      const readPos = (writePos - count + MAX_BUFFER_SAMPLES) % MAX_BUFFER_SAMPLES;
+      const readPos = (writePos - count + capacity) % capacity;
 
-      const endPos = readPos + SAMPLES_PER_CHUNK;
-      if (endPos <= MAX_BUFFER_SAMPLES) {
-        chunkBuf.set(buf.subarray(readPos, endPos));
-      } else {
-        const firstPart = MAX_BUFFER_SAMPLES - readPos;
-        chunkBuf.set(buf.subarray(readPos, MAX_BUFFER_SAMPLES), 0);
-        chunkBuf.set(buf.subarray(0, SAMPLES_PER_CHUNK - firstPart), firstPart);
-      }
-
+const endPos = readPos + SAMPLES_PER_CHUNK;
+if (endPos <= capacity) {
+  chunkBuf.set(buf.subarray(readPos, endPos));
+} else {
+  const firstPart = capacity - readPos;
+  chunkBuf.set(buf.subarray(readPos, capacity), 0);
+  chunkBuf.set(buf.subarray(0, SAMPLES_PER_CHUNK - firstPart), firstPart);
+}
       count -= SAMPLES_PER_CHUNK;
-
-      // Return a copy — downstream listeners may hold onto this asynchronously
       return chunkBuf.slice();
     },
 
