@@ -111,15 +111,29 @@ export function createBotRunner() {
 
     on(Events.TRANSCRIPT_READY, async ({ roomId, text, speakerId }) => {
       if (!text?.trim() || isShuttingDown) return;
+      if (text.trim().split(' ').length < 3) {
+        log.debug({ roomId, text }, 'Transcript too short — ignoring');
+        return; 
+      }
+      
+      // Filter out common false positives from background noise
+      const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay)$/i;
+      if (blacklist.test(text.trim())) {
+        log.debug({ roomId, text }, 'Blacklisted transcript (likely noise) — ignoring');
+        return;
+      }
+      
       log.debug({ roomId, speakerId, text }, '📝 Transcript received');
       try {
-        await context.addTranscript(roomId, text);
+        await context.addTranscript(roomId, text, speakerId);
         const decision = await behavior.evaluate({ roomId, type: 'transcript', text });
         if (!decision.shouldReply) return;
         bus.emit(Events.BEHAVIOR_APPROVED, {
           roomId,
           trigger:     text,
           triggerType: 'transcript',
+          username:    speakerId,
+          userId:      speakerId,
           delayMs:     decision.delayMs,
         });
       } catch (err) {
@@ -298,7 +312,7 @@ export function createBotRunner() {
     llm = createLLMService({ groqAdapter, responseParser });
     log.debug('✓ LLMService');
 
-    moderation = createModerationService({ openaiKey: process.env.OPENAI_API_KEY });
+    moderation = createModerationService({ groqKey: config.groq.apiKey });
     log.debug('✓ ModerationService');
 
     commentFilter = createCommentFilter({
@@ -354,7 +368,7 @@ export function createBotRunner() {
       stt = createSTTService({
         groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
       });
-      stt.init();
+      await stt.init();
       log.debug('✓ STTService');
     }
 
