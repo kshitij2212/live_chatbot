@@ -29,6 +29,8 @@ export function createSTTService(config) {
 
   async function onUtteranceReady({ roomId, speakerId, samples, sampleRate, durationMs }) {
     const ts = Date.now();
+    
+    log.info({ roomId, speakerId, durationMs: Math.round(durationMs) }, 'STT: onUtteranceReady fired');
 
     log.debug(
       { roomId, speakerId, durationMs: Math.round(durationMs) },
@@ -80,6 +82,7 @@ export function createSTTService(config) {
   function init() {
     bus.on(Events.UTTERANCE_READY, onUtteranceReady);
     log.info('STTService initialised');
+    log.info({ listenerCount: bus.listenerCount(Events.UTTERANCE_READY) }, 'UTTERANCE_READY listeners');
   }
 
   function destroy() {
