@@ -35,9 +35,10 @@ export function computeReplyProbability(baseProb, { type, text }) {
   }
 
   // Transcripts are continuous speech — lower signal than a typed comment
-  if (type === 'transcript') {
-    prob *= 0.6;
-  }
+  // Disabled during testing so bot always replies
+  // if (type === 'transcript') {
+  //   prob *= 0.6;
+  // }
 
   return Math.max(0, Math.min(1, prob));
 }
