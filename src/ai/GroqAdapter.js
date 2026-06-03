@@ -22,7 +22,7 @@ const log = logger.child({ module: 'GroqAdapter' });
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const GROQ_API_KEY      = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = 15_000;  // 15s — Groq is fast; if it takes longer something is wrong
 
 // HTTP status codes that are safe to retry
@@ -82,7 +82,7 @@ export function createGroqAdapter(config) {
 
     let response;
     try {
-      response = await fetch(GROQ_API_KEY, {
+      response = await fetch(GROQ_API_ENDPOINT, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
