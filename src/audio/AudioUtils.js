@@ -13,12 +13,8 @@ import logger from '../utils/logger.js';
  * All functions are stateless and return new typed arrays — they never mutate input.
  */
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 export const INT16_MAX  =  32767;
 export const INT16_MIN  = -32768;
-
-// ─── Conversion helpers ───────────────────────────────────────────────────────
 
 /**
  * Stereo Int16Array → Mono Int16Array
@@ -170,8 +166,6 @@ export function normaliseFrame(frame) {
 
   return data;
 }
-
-// ─── WAV encoding ─────────────────────────────────────────────────────────────
 
 /**
  * Encode Int16Array PCM into a valid WAV file Buffer.

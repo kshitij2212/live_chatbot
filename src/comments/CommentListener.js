@@ -3,33 +3,24 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'CommentListener' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // CommentListener is a thin EventBus bridge — NOT a LiveKit listener.
-//
 // LiveKit events are already normalised into EventBus events by RoomEventEmitter:
-//
 //   Data channel path:
 //     LiveKit DataReceived
 //       → RoomEventEmitter.onDataReceived()
 //         → bus.emit(COMMENT_RAW)            ← raw, unparsed
 //           → CommentParser.onCommentRaw()
 //             → bus.emit(COMMENT_RECEIVED)   ← parsed, normalised
-//
 //   Native chat path:
 //     LiveKit ChatMessage
 //       → RoomEventEmitter.onChatMessage()
 //         → bus.emit(COMMENT_RECEIVED)       ← already normalised, skips parser
-//
 // CommentListener sits at the COMMENT_RECEIVED stage.
 // Its job is to be the single observable point for "a comment arrived and
 // is ready to be processed" — useful for logging, metrics, and as a hook
 // for any future pre-filter logic before CommentFilter runs.
-//
 // Pipeline position:
 //   COMMENT_RECEIVED → [CommentListener] → CommentFilter → COMMENT_ACCEPTED
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Creates a CommentListener instance.
@@ -45,7 +36,6 @@ export function createCommentListener(config = {}) {
     (config.ignoredUserIds ?? []).map(id => String(id).toLowerCase())
   );
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
   // Simple in-memory counters — useful for health checks and test assertions.
 
   const stats = {
@@ -53,8 +43,6 @@ export function createCommentListener(config = {}) {
     ignored:    0,   // dropped by ignoredUserIds
     forwarded:  0,   // passed downstream (re-emitted as COMMENT_ACCEPTED candidate)
   };
-
-  // ── Handler ───────────────────────────────────────────────────────────────
 
   /**
    * Handles every COMMENT_RECEIVED event from either path:
@@ -76,7 +64,6 @@ export function createCommentListener(config = {}) {
 
     const { roomId, userId, username, text, source } = comment;
 
-    // ── Hard ignore list ────────────────────────────────────────────────────
     // Checked here rather than only in CommentFilter so ignored users never
     // appear in logs or metrics at all — they vanish silently.
     if (ignoredUserIds.has(String(userId).toLowerCase())) {
@@ -95,18 +82,13 @@ export function createCommentListener(config = {}) {
     // CommentListener does not re-emit — CommentFilter is already subscribed
     // to COMMENT_RECEIVED on the same bus. This handler is purely observational
     // unless you need to add pre-filter logic here in the future.
-    //
     // If you need to intercept and modify comments before CommentFilter sees
     // them, change this to emit a new internal event and update CommentFilter
     // to subscribe to that instead.
   }
 
-  // ── Event registration ────────────────────────────────────────────────────
-
   bus.on(Events.COMMENT_RECEIVED, onCommentReceived);
   log.debug('CommentListener registered');
-
-  // ── Public API ────────────────────────────────────────────────────────────
 
   return {
     /**

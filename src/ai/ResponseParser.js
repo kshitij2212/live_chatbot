@@ -2,12 +2,9 @@ import logger from '../utils/logger.js';
 
 const log = logger.child({ module: 'ResponseParser' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // ResponseParser is a pure, stateless module.
 // Input:  raw completion object from GroqAdapter (OpenAI-compatible shape)
 // Output: { text: string, shouldReply: boolean, raw: object }
-//
 // Responsibilities:
 //   1. Extract the reply text from the completion object
 //   2. Detect "silent" replies — LLM chose not to respond (empty string)
@@ -16,8 +13,6 @@ const log = logger.child({ module: 'ResponseParser' });
 //   4. Enforce hard length limits
 //   5. Never throw — always return a structured result so LLMService
 //      can make a clean decision even on malformed LLM output
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 // Hard cap on reply length (characters).
 // Live chat replies should be short — this is a safety net, not a target.
@@ -37,8 +32,6 @@ const STRIP_PREFIXES = [
 
 // Markdown artefacts that shouldn't appear in a live chat reply
 const STRIP_MARKDOWN_RE = /(\*\*|__|\*|_|`{1,3}|~~)/g;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Extracts the raw text content from a Groq/OpenAI completion response.
@@ -120,8 +113,6 @@ function enforceMaxLength(text) {
 
   return result;
 }
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Creates a ResponseParser instance.

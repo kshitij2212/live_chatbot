@@ -32,8 +32,6 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'AudioBuffer' });
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
 // How many milliseconds of audio to accumulate before flushing to VAD.
 // 30ms is the standard VAD frame window (WebRTC VAD spec).
 const CHUNK_SIZE_MS = 30;
@@ -48,8 +46,6 @@ const SAMPLE_RATE = 16_000;
 // Pre-compute sample counts from ms values
 const SAMPLES_PER_CHUNK  = Math.round((SAMPLE_RATE * CHUNK_SIZE_MS) / 1000);  // 480
 const MAX_BUFFER_SAMPLES = Math.round((SAMPLE_RATE * MAX_BUFFER_MS) / 1000);  // 8000
-
-// ─── Ring buffer per speaker ──────────────────────────────────────────────────
 
 /**
  * A fixed-capacity circular buffer for Int16 PCM samples.
@@ -127,8 +123,6 @@ if (endPos <= capacity) {
     },
   };
 }
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 export function createAudioBuffer() {
 
@@ -233,8 +227,6 @@ export function createAudioBuffer() {
     );
     stats = { framesReceived: 0, chunksEmitted: 0, overflows: 0 };
   }
-
-  // ─── Public API ─────────────────────────────────────────────────────────────
 
   function init() {
     bus.on(Events.AUDIO_FRAME,         onFrame);

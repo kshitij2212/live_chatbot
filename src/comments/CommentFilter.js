@@ -3,8 +3,6 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'CommentFilter' });
 
-// ─── Default config ───────────────────────────────────────────────────────────
-
 const DEFAULTS = {
   // Text length
   minLength:            3,     // drop comments shorter than this (chars)
@@ -29,8 +27,6 @@ const DEFAULTS = {
   blocklistPhrases:     [],    // drop if matched (case-insensitive substring)
 };
 
-// ─── Regexes ──────────────────────────────────────────────────────────────────
-
 // A comment made entirely of emoji + punctuation + whitespace is low-signal.
 // Unicode property escapes require Node 10+ — fine for our target environment.
 const EMOJI_ONLY_RE = /^[\p{Emoji}\p{P}\s]+$/u;
@@ -38,8 +34,6 @@ const EMOJI_ONLY_RE = /^[\p{Emoji}\p{P}\s]+$/u;
 // Bot-like usernames: all digits, or ending with common bot suffixes.
 const BOT_USERNAME_RE = /^\d+$|bot$|_bot$|-bot$/i;
 
-// ─── Per-user rate-limit state ────────────────────────────────────────────────
-//
 // Map<userId, number[]>  — array of message timestamps within the window.
 // Cleaned up lazily on each access.
 
@@ -69,8 +63,6 @@ function isRateLimited(userId, windowMs, maxMessages) {
   return false;
 }
 
-// ─── Factory ──────────────────────────────────────────────────────────────────
-
 /**
  * Creates a CommentFilter instance and wires it to the EventBus.
  *
@@ -84,8 +76,6 @@ export function createCommentFilter(config = {}) {
 
   const blockedSet = new Set(cfg.blockedUserIds.map(id => String(id).toLowerCase()));
 
-  // ── Rule helpers ─────────────────────────────────────────────────────────────
-
   /**
    * Returns the first failing rule name, or null if the comment passes all rules.
    *
@@ -98,14 +88,11 @@ export function createCommentFilter(config = {}) {
     const { userId, username, text } = comment;
     const lowerText = text.toLowerCase();
 
-    // ── Fast-pass: trigger keywords always win ──────────────────────────────
     // Checked before anything else — a question mark or mention should always
     // get through regardless of other heuristics.
     for (const kw of cfg.triggerKeywords) {
       if (text.includes(kw)) return null;  // accepted
     }
-
-    // ── Hard drops ──────────────────────────────────────────────────────────
 
     if (blockedSet.has(String(userId).toLowerCase())) {
       return 'blocked_user';
@@ -127,19 +114,16 @@ export function createCommentFilter(config = {}) {
       return 'bot_username';
     }
 
-    // ── Blocklist phrases ───────────────────────────────────────────────────
     for (const phrase of cfg.blocklistPhrases) {
       if (lowerText.includes(phrase.toLowerCase())) {
         return 'blocklist_phrase';
       }
     }
 
-    // ── Rate limit ──────────────────────────────────────────────────────────
     if (isRateLimited(userId, cfg.rateLimitWindowMs, cfg.rateLimitMaxMessages)) {
       return 'rate_limited';
     }
 
-    // ── Reply probability gate ──────────────────────────────────────────────
     // A random roll lets the bot feel selective even for clean comments.
     // BehaviorEngine applies its own finer-grained probability later.
     if (cfg.replyProbability < 1.0 && Math.random() > cfg.replyProbability) {
@@ -148,8 +132,6 @@ export function createCommentFilter(config = {}) {
 
     return null;  // all rules passed
   }
-
-  // ── Event handler ────────────────────────────────────────────────────────────
 
   function onCommentReceived(comment) {
     const rejectionReason = evaluate(comment);
@@ -177,8 +159,6 @@ export function createCommentFilter(config = {}) {
 
   bus.on(Events.COMMENT_RECEIVED, onCommentReceived);
   log.debug('CommentFilter registered');
-
-  // ── Public API ───────────────────────────────────────────────────────────────
 
   return {
     /**

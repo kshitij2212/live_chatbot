@@ -38,8 +38,6 @@ import { concatInt16Arrays } from './AudioUtils.js';
 
 const log = logger.child({ module: 'SpeechSegmenter' });
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
 const SAMPLE_RATE  = 16_000;
 const FRAME_SIZE_MS = 30;
 
@@ -53,12 +51,9 @@ const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;   // 500 frames
 const MIN_UTTERANCE_MS     = 300; // lowered from 300 to accept shorter utterances
 const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   // adjusted accordingly
 
-
 // Frames of silence to keep at the end of the utterance.
 // A natural trailing silence helps STT identify the last word correctly.
 const SILENCE_PAD_FRAMES = 5;   // 5 × 30ms = 150ms
-
-// ─── Per-speaker state ────────────────────────────────────────────────────────
 
 function createSpeakerState(roomId, speakerId) {
   return {
@@ -72,8 +67,6 @@ function createSpeakerState(roomId, speakerId) {
   };
 }
 
-// ─── Per-room state ───────────────────────────────────────────────────────────
-
 function createRoomState() {
   return {
     isCapturing:    false,
@@ -85,8 +78,6 @@ function createRoomState() {
   };
 }
 
-// ─── Factory ──────────────────────────────────────────────────────────────────
-
 export function createSpeechSegmenter() {
 
   const speakers = new Map();
@@ -95,7 +86,6 @@ export function createSpeechSegmenter() {
     return `${roomId}:${speakerId}`;
   }
 
-  // ─── Flush ───────────────────────────────────────────────────────────────────
   function flush(roomId, speakerId, ts) {
 
     log.debug({ roomId, speakerId, ts }, '🗣️ flush() entered');
@@ -145,8 +135,6 @@ export function createSpeechSegmenter() {
     log.debug({ roomId, speakerId }, '🟢 UTTERANCE_READY emitted');
   }
 
-  // ─── VAD signal handlers ──────────────────────────────────────────────────────
-
   function onSpeechStart({ roomId, speakerId, ts }) {
     const key = getSpeakerKey(roomId, speakerId);
     if (!speakers.has(key)) {
@@ -181,8 +169,6 @@ export function createSpeechSegmenter() {
 
     log.debug({ roomId, frameCount: state.frameCount }, 'Speech end — collecting silence padding');
   }
-
-  // ─── Chunk accumulation ───────────────────────────────────────────────────────
 
   function onChunk({ roomId, speakerId, chunk, ts }) {
     const key = getSpeakerKey(roomId, speakerId);
@@ -219,8 +205,6 @@ export function createSpeechSegmenter() {
     // pure silence with no accumulated frames — nothing to do
   }
 
-  // ─── Cleanup ──────────────────────────────────────────────────────────────────
-
   function onTrackRemoved({ roomId, participantId }) {
     const key = getSpeakerKey(roomId, participantId);
     const state = speakers.get(key);
@@ -243,8 +227,6 @@ export function createSpeechSegmenter() {
       }
     }
   }
-
-  // ─── Public API ───────────────────────────────────────────────────────────────
 
   function init() {
     bus.on(Events.SPEECH_CHUNK,         onChunk);

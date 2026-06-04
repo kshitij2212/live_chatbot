@@ -1,14 +1,9 @@
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // Lightweight token estimator — no external dependencies.
-//
 // Uses the chars/4 heuristic which is accurate enough for English text
 // and consistent with what PromptBuilder and TokenBudgetManager use.
-//
 // For non-English languages or code-heavy prompts, actual token counts
 // may differ by 20–40%. This is acceptable for a prototype — the token
 // budget has enough headroom to absorb the variance.
-//
 // If you need exact counts later, swap the implementation to use
 // tiktoken or Groq's own tokeniser without changing any call sites.
 

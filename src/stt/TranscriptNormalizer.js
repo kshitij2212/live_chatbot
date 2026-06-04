@@ -18,7 +18,6 @@
  *  - Touch anything that looks like real speech content
  */
 
-// ─── Whisper hallucinations ───────────────────────────────────────────────────
 // Whisper frequently outputs these strings on silence, noise, or short audio.
 // Matched case-insensitively, full-string or as a standalone phrase.
 
@@ -42,7 +41,6 @@ const HALLUCINATION_RE = new RegExp(
   'i'
 );
 
-// ─── Filler word collapse ──────────────────────────────────────────────────────
 // Collapse 2+ consecutive identical filler words into one.
 // "umm umm umm" → "umm"   |   "uh uh hello" → "uh hello"
 // Only targets known filler words — does not collapse real repeated words
@@ -57,11 +55,7 @@ const FILLER_COLLAPSE_RE = new RegExp(
   'gi'
 );
 
-// ─── Minimum length ───────────────────────────────────────────────────────────
-
 const MIN_LENGTH = 2;
-
-// ─── Normalizer ───────────────────────────────────────────────────────────────
 
 /**
  * Normalize a raw Whisper transcript.

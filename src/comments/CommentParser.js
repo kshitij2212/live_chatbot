@@ -3,19 +3,12 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'CommentParser' });
 
-// ─── Expected shape of a data-channel comment payload ─────────────────────────
-//
 // Clients sending via the data channel should JSON-encode a payload like:
-//
 //   { text: "hello!", username: "alice", userId: "alice-123", ts: 1718000000000 }
-//
 // Only `text` is required. All other fields are optional and fall back to
 // values already present in the COMMENT_RAW envelope (participantId, Date.now).
-//
 // This parser is intentionally lenient — it never throws, it just drops
 // payloads it cannot make sense of and logs a warning.
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Attempts to parse a raw string as JSON.
@@ -91,8 +84,6 @@ function sanitiseText(text) {
     .trim();
 }
 
-// ─── Core handler ─────────────────────────────────────────────────────────────
-
 /**
  * Handles a COMMENT_RAW event emitted by RoomEventEmitter (data channel path).
  *
@@ -150,8 +141,6 @@ function onCommentRaw({ rawPayload, participantId, roomId, source }) {
   log.debug({ roomId, userId, username, textLen: text.length }, 'Comment parsed');
   bus.emit(Events.COMMENT_RECEIVED, event);
 }
-
-// ─── Registration ─────────────────────────────────────────────────────────────
 
 bus.on(Events.COMMENT_RAW, onCommentRaw);
 

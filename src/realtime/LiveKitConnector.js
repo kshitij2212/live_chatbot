@@ -12,23 +12,17 @@ import { sleep }                  from '../utils/sleep.js';
 
 const log = logger.child({ module: 'LiveKitConnector' });
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const DEFAULT_RECONNECT_ATTEMPTS = 5;
 const DEFAULT_RECONNECT_BASE_MS  = 1_500;
 const DEFAULT_RECONNECT_MAX_MS   = 30_000;
 const DISCONNECT_TIMEOUT_MS      = 5_000;
 const CONNECT_TIMEOUT_MS         = 10_000;
 
-// ─── Terminal disconnect reasons (do not reconnect) ───────────────────────────
-
 const TERMINAL_REASONS = new Set([
   String(DisconnectReason.CLIENT_INITIATED),
   'CLIENT_INITIATED',
   'intentional',
 ]);
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Creates a LiveKitConnector instance.
@@ -60,8 +54,6 @@ export function createLiveKitConnector(config) {
     reconnectMaxMs    = DEFAULT_RECONNECT_MAX_MS,
   } = config;
 
-  // ── Validate required config ────────────────────────────────────────────────
-
   for (const [key, val] of Object.entries({ url, roomName, botIdentity })) {
     if (!val || typeof val !== 'string' || !val.trim()) {
       throw new Error(`LiveKitConnector: missing required config field "${key}"`);
@@ -71,8 +63,6 @@ export function createLiveKitConnector(config) {
   if (!tokenApiUrl && (!apiKey || !apiSecret)) {
     throw new Error('LiveKitConnector: must provide either tokenApiUrl or both apiKey and apiSecret');
   }
-
-  // ── Internal state ───────────────────────────────────────────────────────────
 
   const ConnectorState = {
     DISCONNECTED:  'disconnected',
@@ -98,8 +88,6 @@ export function createLiveKitConnector(config) {
     isConnected = (state === ConnectorState.CONNECTED);
   }
 
-  // ── Token fetching ────────────────────────────────────────────────────────────
-  //
   // Fetches a fresh token from the manager's API on every connect/reconnect.
   // This ensures the token is always valid and never expired.
 
@@ -140,8 +128,6 @@ export function createLiveKitConnector(config) {
     }
   }
 
-  // ── Room options ──────────────────────────────────────────────────────────────
-
   function buildRoomOptions() {
     return {
       autoSubscribe:  true,
@@ -149,8 +135,6 @@ export function createLiveKitConnector(config) {
       adaptiveStream: false,
     };
   }
-
-  // ── Core connect logic ────────────────────────────────────────────────────────
 
   async function _doConnect() {
     log.info({ roomId, botIdentity, url }, 'Connecting to LiveKit room');
@@ -182,8 +166,6 @@ export function createLiveKitConnector(config) {
 
     log.info({ roomId, botIdentity }, 'Successfully connected to LiveKit room');
   }
-
-  // ── Public: connect ───────────────────────────────────────────────────────────
 
   function connect() {
     if (state === ConnectorState.CONNECTED) {
@@ -219,8 +201,6 @@ export function createLiveKitConnector(config) {
     return connectPromise;
   }
 
-  // ── Public: disconnect ────────────────────────────────────────────────────────
-
   async function disconnect() {
     if (!room) {
       log.warn({ roomId }, 'disconnect() called but no room instance exists');
@@ -255,8 +235,6 @@ export function createLiveKitConnector(config) {
       eventBus.emit(Events.ROOM_DISCONNECTED, { roomId, reason: 'intentional' });
     }
   }
-
-  // ── Reconnect logic ───────────────────────────────────────────────────────────
 
   async function _handleUnexpectedDisconnect(reason) {
     if (reconnectInProgress) {
@@ -328,8 +306,6 @@ export function createLiveKitConnector(config) {
     }
   }
 
-  // ── Internal helpers ──────────────────────────────────────────────────────────
-
   function _resetRoomState() {
     if (emitter) {
       emitter.detach();
@@ -368,8 +344,6 @@ export function createLiveKitConnector(config) {
     }
   }
 
-  // ── Bus listener ──────────────────────────────────────────────────────────────
-
   function _onRoomDisconnected({ roomId: disconnectedRoomId, reason }) {
     if (disconnectedRoomId !== roomId) return;
     if (isShuttingDown) return;
@@ -381,8 +355,6 @@ export function createLiveKitConnector(config) {
   }
 
   eventBus.on(Events.ROOM_DISCONNECTED, _onRoomDisconnected);
-
-  // ── Public API ────────────────────────────────────────────────────────────────
 
   return {
     connect,

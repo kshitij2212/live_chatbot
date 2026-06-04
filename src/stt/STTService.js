@@ -25,8 +25,6 @@ export function createSTTService(config) {
 
   const whisper = createWhisperAdapter({ apiKey: groqApiKey });
 
-  // ─── Pipeline ───────────────────────────────────────────────────────────────
-
   async function onUtteranceReady({ roomId, speakerId, samples, sampleRate, durationMs }) {
     const ts = Date.now();
     
@@ -76,8 +74,6 @@ export function createSTTService(config) {
       ts,
     });
   }
-
-  // ─── Public API ─────────────────────────────────────────────────────────────
 
   function init() {
     bus.on(Events.UTTERANCE_READY, onUtteranceReady);

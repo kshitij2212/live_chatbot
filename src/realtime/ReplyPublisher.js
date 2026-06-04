@@ -4,36 +4,25 @@ import logger             from '../utils/logger.js';
 
 const log = logger.child({ module: 'ReplyPublisher' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // ReplyPublisher is the final step of the reply pipeline.
 // It receives REPLY_SEND events from BehaviorEngine (after delays/cooldowns
 // have been applied) and publishes the reply into the LiveKit room.
-//
 // Two send paths are supported:
-//
 //   1. Native chat  (default, recommended)
 //      Uses room.localParticipant.sendChatMessage() — the LiveKit SDK's
 //      built-in chat API. Messages appear as structured chat events on
 //      all connected clients automatically.
-//
 //   2. Data channel  (fallback / custom clients)
 //      Uses room.localParticipant.publishData() with topic 'chat'.
 //      Sends a JSON-encoded payload matching the shape CommentParser expects.
 //      Use this if your client listens on the data channel directly.
-//
 // The send path is set at construction time via config.sendMode.
 // Default: 'chat' (native chat API).
-//
 // Pipeline position:
 //   BehaviorEngine → REPLY_SEND → [ReplyPublisher] → LiveKit room
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const SEND_MODES   = new Set(['chat', 'data_channel']);
 const textEncoder  = new TextEncoder();
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Creates a ReplyPublisher instance.
@@ -73,14 +62,10 @@ export function createReplyPublisher(config) {
     throw new Error(`ReplyPublisher: sendMode must be one of ${[...SEND_MODES].join(', ')}`);
   }
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
-
   const stats = {
     sent:   0,
     failed: 0,
   };
-
-  // ── Send helpers ──────────────────────────────────────────────────────────
 
   /**
    * Sends via the LiveKit native chat API.
@@ -145,8 +130,6 @@ export function createReplyPublisher(config) {
     });
   }
 
-  // ── Core handler ──────────────────────────────────────────────────────────
-
   /**
    * Handles REPLY_SEND events from BehaviorEngine.
    *
@@ -159,7 +142,6 @@ export function createReplyPublisher(config) {
    * }
    */
   async function onReplySend({ roomId, trigger, text, usage }) {
-    // ── Guard: room must be connected ───────────────────────────────────────
     if (!roomRef.room) {
       log.warn({ roomId }, 'Cannot send reply — no active room instance');
       stats.failed++;
@@ -227,12 +209,8 @@ export function createReplyPublisher(config) {
     }
   }
 
-  // ── Event registration ────────────────────────────────────────────────────
-
   bus.on(Events.REPLY_SEND, onReplySend);
   log.debug({ sendMode }, 'ReplyPublisher registered');
-
-  // ── Public API ────────────────────────────────────────────────────────────
 
   return {
     /**

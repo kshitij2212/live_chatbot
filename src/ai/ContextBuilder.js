@@ -3,21 +3,14 @@ import logger                  from '../utils/logger.js';
 
 const log = logger.child({ module: 'ContextBuilder' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // ContextBuilder listens for BEHAVIOR_APPROVED (from BotRunner)
 // and assembles a rich context payload by consulting:
-//
 //   • ContextMemoryService  — per-room rolling history from Redis
 //   • PersonaMemoryService  — static bot persona config
-//
 // It then passes the assembled payload directly to PromptBuilder and emits
 // CONTEXT_READY for any other listeners that need the full context.
-//
 // ContextBuilder is intentionally stateless — all state lives in the
 // memory services it calls. This makes it safe to restart without data loss.
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * @param {object} deps
@@ -31,8 +24,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
   if (!personaMemory) throw new Error('ContextBuilder: personaMemory is required');
   if (!promptBuilder) throw new Error('ContextBuilder: promptBuilder is required');
   if (!botId)         throw new Error('ContextBuilder: botId is required');
-
-  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   /**
    * Merges separate context lists into a unified, chronologically sorted array.
@@ -63,8 +54,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
     return merged;
   }
 
-  // ── Core handler ─────────────────────────────────────────────────────────────
-
   /**
    * Handles BEHAVIOR_APPROVED.
    *
@@ -81,7 +70,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
   async function onTrigger(triggerEvent) {
     const { roomId } = triggerEvent;
 
-    // ── Normalise trigger to a unified shape ────────────────────────────────
     const normalisedTrigger = normaliseTrigger(triggerEvent);
     if (!normalisedTrigger) return;  // logged inside normalise
 
@@ -90,7 +78,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       'Building context'
     );
 
-    // ── Fetch context and persona in parallel ────────────────────────────────
     let rawContext, persona;
     try {
       [rawContext, persona] = await Promise.all([
@@ -105,8 +92,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
 
     const history = interleaveHistory(rawContext);
 
-    // ── Assemble context payload ─────────────────────────────────────────────
-    //
     // This is the single source of truth passed to PromptBuilder.
     // All fields are explicit — no magic, no hidden state.
     const contextPayload = {
@@ -117,7 +102,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       builtAt:    new Date().toISOString(),
     };
 
-    // ── Hand off to PromptBuilder ────────────────────────────────────────────
     let promptMessages;
     try {
       promptMessages = promptBuilder.build(contextPayload);
@@ -127,8 +111,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       return;
     }
 
-    // ── Emit CONTEXT_READY ───────────────────────────────────────────────────
-    //
     // LLMService listens for this event.
     // The full contextPayload is included alongside promptMessages so
     // post-LLM handlers (e.g. ContextMemoryService.append) have everything
@@ -145,8 +127,6 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       'Context ready — emitted CONTEXT_READY'
     );
   }
-
-  // ── Trigger normalisation ────────────────────────────────────────────────────
 
   /**
    * Converts any supported trigger event into a unified shape:
@@ -180,13 +160,9 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
     };
   }
 
-  // ── Event registration ───────────────────────────────────────────────────────
-
   bus.on(Events.BEHAVIOR_APPROVED, onTrigger);
 
   log.debug('ContextBuilder registered');
-
-  // ── Public API ───────────────────────────────────────────────────────────────
 
   return {
     /**

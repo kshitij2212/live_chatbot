@@ -61,7 +61,7 @@ export function createWhisperAdapter(config) {
     formData.append('model', MODEL);
     formData.append('response_format', 'json');
     formData.append('language', 'hi');
-    formData.append('prompt', 'नमस्ते, आप कैसे हैं? मैं बिल्कुल ठीक हूँ। आज आपका क्या प्लान है? हाँ, अच्छा है। कृपया मुझे बताइये। बहुत बढ़िया!');
+    formData.append('temperature', '0');
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);

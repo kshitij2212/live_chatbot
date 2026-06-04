@@ -28,8 +28,6 @@ const log = logger.child({ module: 'ContextMemoryService' });
 export function createContextMemory(redis, config = {}) {
   const ttl = config.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
-  // ─── Internal helpers ──────────────────────────────────────────────────────
-
   /**
    * LPUSH one JSON-serialized entry, LTRIM to limit, EXPIRE to refresh TTL.
    * All three commands in a single pipeline — one round trip.
@@ -60,8 +58,6 @@ export function createContextMemory(redis, config = {}) {
     }).filter(Boolean);
   }
 
-  // ─── Transcripts ───────────────────────────────────────────────────────────
-
   /**
    * @param {string} roomId
    * @param {string} text
@@ -79,8 +75,6 @@ export function createContextMemory(redis, config = {}) {
   async function getTranscripts(roomId) {
     return readList(keys.transcripts(roomId));
   }
-
-  // ─── Comments ──────────────────────────────────────────────────────────────
 
   /**
    * @param {string} roomId
@@ -101,8 +95,6 @@ export function createContextMemory(redis, config = {}) {
     return readList(keys.comments(roomId));
   }
 
-  // ─── Bot replies ───────────────────────────────────────────────────────────
-
   /** @param {string} roomId @param {string} text */
   async function addBotReply(roomId, text) {
     await pushToList(
@@ -116,8 +108,6 @@ export function createContextMemory(redis, config = {}) {
   async function getBotReplies(roomId) {
     return readList(keys.botReplies(roomId));
   }
-
-  // ─── Room meta ─────────────────────────────────────────────────────────────
 
   /**
    * Merge fields into the room meta hash.
@@ -144,8 +134,6 @@ export function createContextMemory(redis, config = {}) {
     return Object.keys(data).length ? data : null;
   }
 
-  // ─── Cooldown ──────────────────────────────────────────────────────────────
-
   /**
    * Set cooldown for a room. Key expires automatically after durationMs.
    * @param {string} roomId
@@ -164,8 +152,6 @@ export function createContextMemory(redis, config = {}) {
     return result === 1;
   }
 
-  // ─── Bulk read (used by ContextBuilder) ────────────────────────────────────
-
   /**
    * Fetch all context for a room in parallel.
    * ContextBuilder calls this once and receives everything it needs.
@@ -182,8 +168,6 @@ export function createContextMemory(redis, config = {}) {
     ]);
     return { transcripts, comments, botReplies, meta };
   }
-
-  // ─── Cleanup ───────────────────────────────────────────────────────────────
 
   /**
    * Delete all keys for a room. Called when the bot leaves.

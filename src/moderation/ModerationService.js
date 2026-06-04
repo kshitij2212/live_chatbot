@@ -30,14 +30,12 @@ export class ModerationService {
       return { safe: true, reason: null };
     }
 
-    // ── Layer 1: prompt injection guard (sync) ───────────────────────────────
     const sanitised = sanitise(text);
     if (!sanitised) {
       log.warn({ text }, 'Reply fully stripped by PromptInjectionGuard — dropping');
       return { safe: false, reason: 'prompt_injection' };
     }
 
-    // ── Layer 2: Llama Guard via Groq (async) ────────────────────────────────
     if (this.adapter) {
       try {
         const result = await this.adapter.check(sanitised);

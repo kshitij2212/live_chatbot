@@ -26,8 +26,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── BotRunner ────────────────────────────────────────────────────────────────
-
 export function createBotRunner() {
 
   let connector       = null;
@@ -57,8 +55,6 @@ export function createBotRunner() {
   // Tracks every bus.on() registration so unwireEvents() can clean up
   const listeners = [];
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-
   function on(event, fn) {
     bus.on(event, fn);
     listeners.push([event, fn]);
@@ -74,11 +70,7 @@ export function createBotRunner() {
     listeners.length = 0;
   }
 
-  // ─── Wire ──────────────────────────────────────────────────────────────────
-
   function wireEvents() {
-
-    // ── Room lifecycle ──────────────────────────────────────────────────────
 
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
       // Fix #2 — keep roomRef in sync so ReplyPublisher always has the live Room
@@ -95,8 +87,6 @@ export function createBotRunner() {
       log.warn({ roomId, reason }, 'Left room');
     });
 
-
-
     on(Events.PARTICIPANT_JOINED, ({ roomId, identity }) => {
       log.info({ roomId, identity }, '👤 Participant joined');
     });
@@ -105,7 +95,6 @@ export function createBotRunner() {
       log.info({ roomId, identity }, '👤 Participant left');
     });
 
-    // ── Transcript pipeline (Phase 2 — STT) ────────────────────────────────
     // Wired now so the handler exists when STT is enabled.
     // Does nothing while ENABLE_VOICE_STT is not set.
 
@@ -137,8 +126,6 @@ export function createBotRunner() {
       }
     });
 
-    // ── Comment pipeline ────────────────────────────────────────────────────
-    //
     // Flow:
     //   COMMENT_RECEIVED
     //     → CommentFilter (subscribed directly)
@@ -169,8 +156,6 @@ export function createBotRunner() {
       }
     });
 
-    // ── Reply publish ───────────────────────────────────────────────────────
-    //
     // LLMService emits REPLY_READY → BotRunner applies delay + moderation
     // → emits REPLY_SEND → ReplyPublisher sends into the LiveKit room
     // → emits REPLY_SENT → BotRunner logs confirmation
@@ -219,8 +204,6 @@ export function createBotRunner() {
       log.warn({ roomId, userId: trigger?.userId, errName, errMessage }, '⚠️  Reply failed');
     });
 
-    // ── Connector events ────────────────────────────────────────────────────
-
     on(Events.CONNECTOR_RECONNECTING, ({ roomId, attempt, maxAttempts, delayMs }) => {
       log.warn({ roomId, attempt, maxAttempts, delayMs }, '🔄 Reconnecting...');
     });
@@ -235,14 +218,10 @@ export function createBotRunner() {
       stop('connector_failed').catch((err) => log.error({ err }, 'Shutdown error'));
     });
 
-    // ── Shutdown signal ─────────────────────────────────────────────────────
-
     once(Events.BOT_SHUTDOWN, () => {
       stop('BOT_SHUTDOWN event').catch((err) => log.error({ err }, 'Shutdown error'));
     });
   }
-
-  // ─── Start ─────────────────────────────────────────────────────────────────
 
   async function start() {
     log.info('═══════════════════════════════════════════');
@@ -250,13 +229,9 @@ export function createBotRunner() {
     log.info('═══════════════════════════════════════════');
     log.info({ room: config.livekit.roomName, bot: config.livekit.botIdentity }, 'Config loaded');
 
-    // ── Redis ─────────────────────────────────────────────────────────────
-
     log.info('Connecting to Redis...');
     redis = await createRedisClient(config.redis.url);
     log.info({ url: config.redis.url }, '✓ Redis connected');
-
-    // ── Core services ─────────────────────────────────────────────────────
 
     log.info('Instantiating services...');
 
@@ -322,12 +297,9 @@ export function createBotRunner() {
     commentListener = createCommentListener();
     log.debug('✓ CommentListener');
 
-    // ── Audio pipeline (Phase 2) ──────────────────────────────────────────
-    //
     // Fix #1 — default is SKIPPED, not full pipeline.
     // Set AUDIO_PIPELINE_STAGE=1/2/3/4 explicitly to enable stages.
     // Unset or '0' = comment-only mode, no audio processing.
-    //
     // AUDIO_PIPELINE_STAGE levels:
     //   0 or unset → skip all audio (safe default, no OOM risk)
     //   1          → AudioBuffer only
@@ -368,8 +340,6 @@ export function createBotRunner() {
       log.debug('✓ STTService');
     }
 
-    // ── Transport layer ───────────────────────────────────────────────────
-
     connector = createLiveKitConnector({
       url:            config.livekit.url,
       apiKey:         config.livekit.apiKey,
@@ -392,13 +362,9 @@ export function createBotRunner() {
     });
     log.debug('✓ ReplyPublisher');
 
-    // ── Wire events ───────────────────────────────────────────────────────
-
     log.info('Wiring EventBus...');
     wireEvents();
     log.info('✓ EventBus wired');
-
-    // ── Connect ───────────────────────────────────────────────────────────
 
     log.info({ room: config.livekit.roomName }, 'Connecting to LiveKit room...');
     await connector.connect();
@@ -412,8 +378,6 @@ export function createBotRunner() {
     log.info('  Bot is live. Listening...');
     log.info('═══════════════════════════════════════════');
   }
-
-  // ─── Stop ──────────────────────────────────────────────────────────────────
 
   async function stop(reason = 'unknown') {
     if (isShuttingDown) return;
@@ -455,8 +419,6 @@ export function createBotRunner() {
   return { start, stop };
 }
 
-// ─── Signal handlers ──────────────────────────────────────────────────────────
-
 function registerSignalHandlers(runner) {
   let forcedExit = false;
 
@@ -482,8 +444,6 @@ function registerSignalHandlers(runner) {
     log.error({ reason }, 'Unhandled promise rejection — investigate immediately');
   });
 }
-
-// ─── Entry point ─────────────────────────────────────────────────────────────
 
 const isMain =
   process.argv[1] &&

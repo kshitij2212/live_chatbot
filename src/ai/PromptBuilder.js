@@ -3,31 +3,7 @@ import { countTokens } from '../utils/tokenCounter.js';
 
 const log = logger.child({ module: 'PromptBuilder' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
-// PromptBuilder is a pure, stateless module.
-// Input:  contextPayload from ContextBuilder
-// Output: OpenAI-compatible messages array  →  [{ role, content }, ...]
-//
-// Responsibilities:
-//   1. Format the system prompt from persona config
-//   2. Convert Redis history entries into messages array entries
-//   3. Append the current trigger as the final user message
-//   4. Trim history to stay within token budget (via TokenBudgetManager)
-//
-// PromptBuilder does NOT call any external service.
-// It does NOT read from Redis.
-// It does NOT emit events.
-// It simply takes data in and returns a messages array.
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-// Rough token budget for the history slice.
-// System prompt + current message + reply headroom are reserved separately.
-// This is a conservative default; TokenBudgetManager enforces the hard limit.
 const DEFAULT_HISTORY_TOKEN_BUDGET = 1_500;
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * @param {object} [config]
@@ -40,8 +16,6 @@ export function createPromptBuilder(config = {}) {
     historyTokenBudget   = DEFAULT_HISTORY_TOKEN_BUDGET,
     tokenBudgetManager   = null,
   } = config;
-
-  // ── System prompt builder ─────────────────────────────────────────────────
 
   /**
    * Constructs the system prompt from the persona config.
@@ -65,13 +39,11 @@ export function createPromptBuilder(config = {}) {
       location,
     } = persona;
 
-    // personality is an object: { tone, energy, humor, traits[] }
     const traits     = Array.isArray(personality.traits) ? personality.traits.join(', ') : '';
     const tone       = personality.tone   ?? 'casual';
     const energy     = personality.energy ?? 'medium';
     const humor      = personality.humor  ?? 'light';
 
-    // replyStyle is an object: { maxSentences, useEmojis, emojiFrequency, usesFillerWords, exampleReplies[] }
     const maxSentences   = replyStyle.maxSentences   ?? 2;
     const useEmojis      = replyStyle.useEmojis      ?? false;
     const emojiFreq      = replyStyle.emojiFrequency ?? 'rare';
@@ -133,8 +105,6 @@ export function createPromptBuilder(config = {}) {
     return lines.join('\n');
   }
 
-  // ── History formatter ────────────────────────────────────────────────────
-
   /**
    * Converts ContextEntry[] from Redis into OpenAI-compatible message objects.
    *
@@ -168,8 +138,6 @@ export function createPromptBuilder(config = {}) {
         return { role: 'user', content: `${prefix}${entry.text.trim()}` };
       });
   }
-
-  // ── Token budget trimmer ─────────────────────────────────────────────────
 
   /**
    * Trims history messages to fit within the token budget.
@@ -208,8 +176,6 @@ export function createPromptBuilder(config = {}) {
     return kept;
   }
 
-  // ── Main build function ───────────────────────────────────────────────────
-
   /**
    * Builds the final messages array from a contextPayload.
    *
@@ -232,18 +198,14 @@ export function createPromptBuilder(config = {}) {
     if (!persona) throw new Error('PromptBuilder.build: persona is required');
     if (!trigger) throw new Error('PromptBuilder.build: trigger is required');
 
-    // 1. System prompt
     const systemMessage = {
       role:    'system',
       content: buildSystemPrompt(persona),
     };
 
-    // 2. History → messages, trimmed to budget
     const rawHistoryMessages = formatHistory(history);
     const trimmedHistory     = trimToTokenBudget(rawHistoryMessages, historyTokenBudget);
 
-    // 3. Current trigger as the final user message
-    //    Format: "<username>: <text>"  (same as history user messages)
     const currentMessage = {
       role:    'user',
       content: `${trigger.username}: ${trigger.text}`,
@@ -264,8 +226,6 @@ export function createPromptBuilder(config = {}) {
 
     return messages;
   }
-
-  // ── Public API ───────────────────────────────────────────────────────────────
 
   return {
     /**

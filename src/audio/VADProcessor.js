@@ -38,8 +38,6 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'VADProcessor' });
 
-// ─── VAD tuning constants ──────────────────────────────────────────────────────
-
 const MIN_ENERGY_THRESHOLD   = 100;   // absolute floor — lower this so normal speech passes
 const ADAPTIVE_MULTIPLIER    = 4;     // threshold = ambientRMS × this
 const CALIBRATION_FRAMES     = 33;    // ~1s of ambient measurement before VAD activates
@@ -51,8 +49,6 @@ const MAX_ZCR_FOR_SPEECH     = 0.40;
 // Confirmation counters (1 frame = 30ms)
 const SPEECH_CONFIRM_FRAMES  = 6;    // 6 × 30ms = ~180ms  before declaring speech start
 const SILENCE_CONFIRM_FRAMES = 40;   // 40 × 30ms = ~1200ms (1.2s) wait before cutting off the sentence
-
-// ─── Feature extraction ───────────────────────────────────────────────────────
 
 /**
  * Root Mean Square energy of a PCM frame.
@@ -82,8 +78,6 @@ function computeZCR(frame) {
   return crossings / frame.length;
 }
 
-// ─── Per-room state ───────────────────────────────────────────────────────────
-
 function createSpeakerState(roomId, speakerId) {
   return {
     roomId,
@@ -97,8 +91,6 @@ function createSpeakerState(roomId, speakerId) {
   };
 }
 
-// ─── Factory ──────────────────────────────────────────────────────────────────
-
 export function createVADProcessor() {
 
   // speakerKey → speaker state object
@@ -107,8 +99,6 @@ export function createVADProcessor() {
   function getSpeakerKey(roomId, speakerId) {
     return `${roomId}:${speakerId}`;
   }
-
-  // ─── State machine ──────────────────────────────────────────────────────────
 
   /**
    *  SILENCE ──(SPEECH_CONFIRM_FRAMES consecutive speech frames)──► SPEAKING
@@ -147,8 +137,6 @@ export function createVADProcessor() {
     }
   }
 
-  // ─── Chunk handler ──────────────────────────────────────────────────────────
-
   function onChunk({ roomId, speakerId, chunk, ts }) {
     if (!chunk || chunk.length === 0) return;
 
@@ -164,7 +152,6 @@ export function createVADProcessor() {
     const rms = computeRMS(chunk);
     const zcr = computeZCR(chunk);
 
-    // ── Calibration ───────────────────────────────────────────────────────────
     if (!state.isCalibrated) {
       state.calibrationFrames.push(rms);
 
@@ -186,7 +173,6 @@ export function createVADProcessor() {
       return;
     }
 
-    // ── Classify frame ────────────────────────────────────────────────────────
     const isSpeechFrame = rms > state.energyThreshold && zcr < MAX_ZCR_FOR_SPEECH;
 
     log.trace(
@@ -218,8 +204,6 @@ export function createVADProcessor() {
       }
     }
   }
-
-  // ─── Public API ─────────────────────────────────────────────────────────────
 
   function init() {
     bus.on(Events.SPEECH_CHUNK,         onChunk);

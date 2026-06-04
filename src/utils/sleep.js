@@ -1,5 +1,3 @@
-// ─── sleep ────────────────────────────────────────────────────────────────────
-//
 // Promise-based delay helper.
 // Used by:
 //   - LiveKitConnector  (reconnect backoff)

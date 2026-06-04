@@ -3,32 +3,24 @@ import { retry } from '../utils/retry.js';
 
 const log = logger.child({ module: 'GroqAdapter' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // GroqAdapter is the only file that talks to the Groq API.
 // It wraps the OpenAI-compatible /v1/chat/completions endpoint.
-//
 // Responsibilities:
 //   1. Build and send the HTTP request to Groq
 //   2. Return the raw completion object — no parsing, no business logic
 //   3. Handle HTTP errors, surface them cleanly
 //   4. Retry on transient failures (429, 5xx) via the retry utility
 //   5. Enforce a request timeout so a stalled API call never blocks forever
-//
 // GroqAdapter does NOT:
 //   - Parse or validate the reply text  (that is ResponseParser's job)
 //   - Emit events                        (that is LLMService's job)
 //   - Know anything about rooms, users, or context
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = 15_000;  // 15s — Groq is fast; if it takes longer something is wrong
 
 // HTTP status codes that are safe to retry
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
-
-// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Creates a GroqAdapter instance.
@@ -55,8 +47,6 @@ export function createGroqAdapter(config) {
 
   if (!apiKey?.trim()) throw new Error('GroqAdapter: apiKey is required');
   if (!model?.trim())  throw new Error('GroqAdapter: model is required');
-
-  // ── Request builder ──────────────────────────────────────────────────────
 
   /**
    * Sends a single chat completion request to Groq.
@@ -101,8 +91,6 @@ export function createGroqAdapter(config) {
       clearTimeout(timer);
     }
 
-    // ── HTTP error handling ──────────────────────────────────────────────────
-
     if (!response.ok) {
       let errorBody = '';
       try { errorBody = await response.text(); } catch { /* ignore */ }
@@ -123,8 +111,6 @@ export function createGroqAdapter(config) {
       throw fatal;
     }
 
-    // ── Parse response ───────────────────────────────────────────────────────
-
     let json;
     try {
       json = await response.json();
@@ -134,8 +120,6 @@ export function createGroqAdapter(config) {
 
     return json;
   }
-
-  // ── Public API ────────────────────────────────────────────────────────────
 
   /**
    * Sends a chat completion request to Groq with automatic retry on
@@ -197,8 +181,6 @@ export function createGroqAdapter(config) {
   return { complete, getModel };
 }
 
-// ─── Error types ─────────────────────────────────────────────────────────────
-//
 // Named error classes let callers distinguish failure modes without
 // inspecting error messages. LLMService uses these to decide whether
 // to emit REPLY_FAILED or silently drop.

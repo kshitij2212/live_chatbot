@@ -40,13 +40,10 @@ export function createRoomEventEmitter(room, config) {
   // when the lag exceeds a threshold (e.g. > 500 ms of buffered audio).
   const audioStreams = new Map();
 
-  // ─── Audio frame reader ─────────────────────────────────────────────────
-
   async function runAudioFrameLoop(audioStream, trackSid, speakerId, abortSignal) {
     const reader = audioStream.getReader();
 
     // Wake the awaiting reader.read() when abort fires.
-    //
     // Note: do NOT use `Promise.race([reader.read(), abortPromise])` here.
     // That pattern is a known memory leak — each iteration attaches a fresh
     // `then` callback to the long-lived abortPromise's reaction list, and
@@ -175,8 +172,6 @@ export function createRoomEventEmitter(room, config) {
     audioStreams.clear();
   }
 
-  // ─── Room lifecycle ─────────────────────────────────────────────────────
-
   function onConnected() {
     log.info({ roomId }, 'Room connected');
     bus.emit(Events.ROOM_CONNECTED, { roomId, roomName: room.name });
@@ -224,8 +219,6 @@ export function createRoomEventEmitter(room, config) {
     }
   }
 
-  // ─── Participant lifecycle ───────────────────────────────────────────────
-
   function onParticipantConnected(participant) {
     log.info({ identity: participant.identity }, 'Participant joined');
     bus.emit(Events.PARTICIPANT_JOINED, {
@@ -255,8 +248,6 @@ export function createRoomEventEmitter(room, config) {
       identity:      participant.identity,
     });
   }
-
-  // ─── Track lifecycle ─────────────────────────────────────────────────────
 
   function onTrackSubscribed(track, publication, participant) {
     if (track.kind !== TrackKind.KIND_AUDIO) return;
@@ -301,8 +292,6 @@ export function createRoomEventEmitter(room, config) {
     });
   }
 
-  // ─── Data channel ────────────────────────────────────────────────────────
-
   function onDataReceived(payload, participant, _kind, topic) {
     if (!participant || participant.identity === botUserId) return;
 
@@ -344,8 +333,6 @@ export function createRoomEventEmitter(room, config) {
     });
   }
 
-  // ─── Native chat API ──────────────────────────────────────────────────────
-
   // Emits COMMENT_RECEIVED directly — bypasses COMMENT_RAW / CommentParser
   // entirely because the LiveKit Chat API already provides a structured,
   // SDK-validated payload. The shape emitted here is the canonical
@@ -374,8 +361,6 @@ export function createRoomEventEmitter(room, config) {
     });
   }
 
-  // ─── Native chat text-stream API ─────────────────────────────────────────
-  //
   // Newer LiveKit clients (web SDK >= 2.x) send chat via the TextStream API
   // on topic `lk.chat` instead of the legacy ChatMessage / DataPacket paths.
   // Without a registered handler the SDK logs:
@@ -418,8 +403,6 @@ export function createRoomEventEmitter(room, config) {
       source:   'chat_message',
     });
   }
-
-  // ─── Attach / detach ─────────────────────────────────────────────────────
 
   function attach() {
     room.on(RoomEvent.Connected,               onConnected);

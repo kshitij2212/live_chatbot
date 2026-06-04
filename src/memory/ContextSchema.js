@@ -10,8 +10,6 @@
  * Import keys() from here wherever a key is needed.
  */
 
-// ─── Key factory ──────────────────────────────────────────────────────────────
-
 export const keys = {
   transcripts: (roomId) => `context:${roomId}:transcripts`,
   comments:    (roomId) => `context:${roomId}:comments`,
@@ -20,7 +18,6 @@ export const keys = {
   cooldown:    (roomId) => `context:${roomId}:cooldown`,
 };
 
-// ─── List size limits ─────────────────────────────────────────────────────────
 // LPUSH + LTRIM enforces these on every write.
 // ContextBuilder will further trim to token budget when building prompts.
 
@@ -30,13 +27,11 @@ export const limits = {
   botReplies:  10,   // last 10 bot replies (anti-repetition)
 };
 
-// ─── Default TTL ──────────────────────────────────────────────────────────────
 // Refreshed on every write. Streams that end naturally expire after this.
 // Override via config.redis.contextTtlSeconds.
 
 export const DEFAULT_TTL_SECONDS = 2 * 60 * 60; // 2 hours
 
-// ─── Data shapes (documentation) ─────────────────────────────────────────────
 // These are not enforced at runtime — they document what each list entry
 // looks like so ContextBuilder knows what to expect when it reads them.
 

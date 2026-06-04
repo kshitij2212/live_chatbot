@@ -2,26 +2,18 @@ import logger from '../utils/logger.js';
 
 const log = logger.child({ module: 'promptInjectionGuard' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // Lightweight prompt injection sanitiser.
-//
 // A live stream chat has unknown users sending arbitrary text.
 // Before that text is embedded in a system prompt or user message,
 // we strip patterns commonly used to hijack LLM behaviour:
-//
 //   • "Ignore previous instructions and..."
 //   • "You are now DAN..."
 //   • "###SYSTEM:" / "[INST]" style delimiters
 //   • Null bytes and other control characters
-//
 // This is a defence-in-depth measure — the main protection is the
 // system prompt itself. This guard reduces the attack surface.
-//
 // It NEVER throws. If sanitisation itself somehow fails, the original
 // text is returned (safe fallback) and a warning is logged.
-
-// ─── Patterns ────────────────────────────────────────────────────────────────
 
 // Each entry is { re: RegExp, replacement: string, label: string }
 // Applied in order. All are global + case-insensitive.
@@ -59,8 +51,6 @@ const PATTERNS = [
 
 // Hard cap — an unusually long comment is suspicious
 const MAX_INPUT_CHARS = 1_000;
-
-// ─── Main export ──────────────────────────────────────────────────────────────
 
 /**
  * Sanitises user-supplied text before it is embedded in a prompt.

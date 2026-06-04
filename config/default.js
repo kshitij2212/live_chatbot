@@ -1,16 +1,10 @@
-// ─── config/default.js ────────────────────────────────────────────────────────
-//
 // Single source of truth for all configuration values.
-//
 // Priority (highest → lowest):
 //   1. Environment variables  (process.env.*)
 //   2. Values defined here    (defaults)
-//
 // All env vars are read once at startup. Changing them at runtime has no effect.
 // Sensitive values (API keys, secrets) are NEVER hardcoded here —
 // they must be set in .env and will throw if missing in production.
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function env(key, fallback) {
   const val = process.env[key];
@@ -41,11 +35,8 @@ function envFloat(key, fallback) {
   throw new Error(`config: required environment variable "${key}" is not set`);
 }
 
-// ─── Config object ────────────────────────────────────────────────────────────
-
 const config = {
 
-  // ── LiveKit ────────────────────────────────────────────────────────────────
   livekit: {
     url:          env('LIVEKIT_URL',          'wss://livestreaming-wfekhupp.livekit.cloud'),
     apiKey:       env('LIVEKIT_API_KEY',      'devkey'),
@@ -71,7 +62,6 @@ const config = {
     },
   },
 
-  // ── Groq / LLM ────────────────────────────────────────────────────────────
   groq: {
     apiKey:      env('GROQ_API_KEY', ''),            // fallback empty string for tests
     model:       env('GROQ_MODEL',    'llama-3.3-70b-versatile'),
@@ -82,7 +72,6 @@ const config = {
     retryBaseMs: envInt('GROQ_RETRY_BASE_MS', 500),
   },
 
-  // ── Redis ──────────────────────────────────────────────────────────────────
   redis: {
     url:         env('REDIS_URL', 'redis://localhost:6379'),
     // TTL in seconds for a room's context key after last activity.
@@ -90,20 +79,17 @@ const config = {
     contextTtlSeconds: envInt('REDIS_CONTEXT_TTL_SECONDS', 7200),
   },
 
-  // ── Context memory ─────────────────────────────────────────────────────────
   context: {
     // Max number of messages kept in the rolling window per room.
     windowSize: envInt('CONTEXT_WINDOW_SIZE', 20),
   },
 
-  // ── Prompt / token budget ──────────────────────────────────────────────────
   prompt: {
     // Max tokens allocated to history in the prompt.
     // System prompt + current message + reply headroom are in addition to this.
     historyTokenBudget: envInt('PROMPT_HISTORY_TOKEN_BUDGET', 1500),
   },
 
-  // ── Behavior engine ────────────────────────────────────────────────────────
   behavior: {
     // Minimum ms between replies to the same user
     perUserCooldownMs:  envInt('REPLY_COOLDOWN_MS',        30000),
@@ -117,7 +103,6 @@ const config = {
     replyProbability:   envFloat('REPLY_PROBABILITY',      0.85),
   },
 
-  // ── Comment filter ─────────────────────────────────────────────────────────
   commentFilter: {
     minLength:            envInt('FILTER_MIN_LENGTH',             3),
     maxLength:            envInt('FILTER_MAX_LENGTH',             500),
@@ -125,7 +110,6 @@ const config = {
     rateLimitMaxMessages: envInt('FILTER_RATE_LIMIT_MAX_MESSAGES', 5),
   },
 
-  // ── Logging ────────────────────────────────────────────────────────────────
   logging: {
     level: env('LOG_LEVEL', 'info'),
   },

@@ -2,13 +2,10 @@ import logger from './logger.js';
 
 const log = logger.child({ module: 'retry' });
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
-//
 // Generic exponential backoff retry wrapper.
 // Used by:
 //   - GroqAdapter  (transient Groq API failures — 429, 5xx)
 //   - RedisClient  (transient Redis connection failures)
-//
 // Design:
 //   - Caller controls WHICH errors are retryable via `shouldRetry`
 //   - Exponential backoff with optional jitter
