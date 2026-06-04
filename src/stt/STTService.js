@@ -1,14 +1,3 @@
-/**
- * STTService
- *
- * Coordinates the full STT pipeline:
- *   UTTERANCE_READY → WhisperAdapter → TranscriptNormalizer → TRANSCRIPT_READY
- *                                                            ↘ STT_FAILED
- *
- * This is the only file in stt/ that touches the EventBus.
- * WhisperAdapter and TranscriptNormalizer are plain functions — no bus wiring.
- */
-
 import bus, { Events }           from '../core/EventBus.js';
 import { createWhisperAdapter }  from './WhisperAdapter.js';
 import { normalizeTranscript }   from './TranscriptNormalizer.js';
@@ -16,10 +5,6 @@ import logger                    from '../utils/logger.js';
 
 const log = logger.child({ module: 'STTService' });
 
-/**
- * @param {object} config
- * @param {string} config.groqApiKey
- */
 export function createSTTService(config) {
   const { groqApiKey } = config;
 
@@ -35,7 +20,6 @@ export function createSTTService(config) {
       'STT: received utterance'
     );
 
-    // 1. Transcribe via Groq Whisper
     let raw;
     try {
       raw = await whisper.transcribe(samples, sampleRate);
@@ -50,10 +34,8 @@ export function createSTTService(config) {
       return;
     }
 
-    // 2. Normalize
     const text = normalizeTranscript(raw);
 
-    // 3. Validate
     if (!text) {
       log.debug({ roomId, speakerId, raw }, 'STT: transcript empty after normalization');
       bus.emit(Events.STT_FAILED, {
@@ -65,7 +47,6 @@ export function createSTTService(config) {
       return;
     }
 
-    // 4. Emit
     log.info({ roomId, speakerId, text }, '📝 Transcript ready');
     bus.emit(Events.TRANSCRIPT_READY, {
       roomId,

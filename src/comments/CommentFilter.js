@@ -4,50 +4,28 @@ import logger          from '../utils/logger.js';
 const log = logger.child({ module: 'CommentFilter' });
 
 const DEFAULTS = {
-  // Text length
-  minLength:            3,     // drop comments shorter than this (chars)
-  maxLength:            500,   // drop comments longer than this
+  
+  minLength:            3,     
+  maxLength:            500,   
 
-  // Rate limiting — per userId
-  rateLimitWindowMs:    10_000, // sliding window duration
-  rateLimitMaxMessages: 5,      // max messages allowed within the window
+  rateLimitWindowMs:    10_000, 
+  rateLimitMaxMessages: 5,      
 
-  // Probability of replying even to valid comments (human-like selectivity).
-  // 1.0 = always reply, 0.0 = never reply.
-  // Fine-grained reply probability is handled later by BehaviorEngine;
-  // this is a coarse first pass so obviously-not-reply-worthy comments
-  // don't even reach the LLM pipeline.
   replyProbability:     1.0,
 
-  // Lists
-  blockedUserIds:       [],    // userId strings — always drop
-  triggerKeywords:      [      // always accept if matched (overrides other rules)
+  blockedUserIds:       [],    
+  triggerKeywords:      [      
     '?',
   ],
-  blocklistPhrases:     [],    // drop if matched (case-insensitive substring)
+  blocklistPhrases:     [],    
 };
 
-// A comment made entirely of emoji + punctuation + whitespace is low-signal.
-// Unicode property escapes require Node 10+ — fine for our target environment.
 const EMOJI_ONLY_RE = /^[\p{Emoji}\p{P}\s]+$/u;
 
-// Bot-like usernames: all digits, or ending with common bot suffixes.
 const BOT_USERNAME_RE = /^\d+$|bot$|_bot$|-bot$/i;
-
-// Map<userId, number[]>  — array of message timestamps within the window.
-// Cleaned up lazily on each access.
 
 const rateLimitMap = new Map();
 
-/**
- * Returns true if this userId has exceeded the rate limit.
- * Mutates rateLimitMap as a side effect.
- *
- * @param {string} userId
- * @param {number} windowMs
- * @param {number} maxMessages
- * @returns {boolean}
- */
 function isRateLimited(userId, windowMs, maxMessages) {
   const now        = Date.now();
   const cutoff     = now - windowMs;
@@ -63,35 +41,17 @@ function isRateLimited(userId, windowMs, maxMessages) {
   return false;
 }
 
-/**
- * Creates a CommentFilter instance and wires it to the EventBus.
- *
- * All config values are optional — DEFAULTS are used for anything not provided.
- *
- * @param {Partial<typeof DEFAULTS>} [config]
- * @returns {{ destroy: () => void }}
- */
 export function createCommentFilter(config = {}) {
   const cfg = { ...DEFAULTS, ...config };
 
   const blockedSet = new Set(cfg.blockedUserIds.map(id => String(id).toLowerCase()));
 
-  /**
-   * Returns the first failing rule name, or null if the comment passes all rules.
-   *
-   * Rules are evaluated cheapest-first to minimise work for spam.
-   *
-   * @param {{ roomId, userId, username, text, ts, source }} comment
-   * @returns {string | null}  reason string if rejected, null if accepted
-   */
   function evaluate(comment) {
     const { userId, username, text } = comment;
     const lowerText = text.toLowerCase();
 
-    // Checked before anything else — a question mark or mention should always
-    // get through regardless of other heuristics.
     for (const kw of cfg.triggerKeywords) {
-      if (text.includes(kw)) return null;  // accepted
+      if (text.includes(kw)) return null;  
     }
 
     if (blockedSet.has(String(userId).toLowerCase())) {
@@ -124,13 +84,11 @@ export function createCommentFilter(config = {}) {
       return 'rate_limited';
     }
 
-    // A random roll lets the bot feel selective even for clean comments.
-    // BehaviorEngine applies its own finer-grained probability later.
     if (cfg.replyProbability < 1.0 && Math.random() > cfg.replyProbability) {
       return 'probability_skip';
     }
 
-    return null;  // all rules passed
+    return null;  
   }
 
   function onCommentReceived(comment) {
@@ -161,22 +119,13 @@ export function createCommentFilter(config = {}) {
   log.debug('CommentFilter registered');
 
   return {
-    /**
-     * Removes the COMMENT_RECEIVED bus listener.
-     * Call when tearing down the bot to prevent listener leaks.
-     */
+    
     destroy() {
       bus.off(Events.COMMENT_RECEIVED, onCommentReceived);
       rateLimitMap.clear();
       log.debug('CommentFilter destroyed');
     },
 
-    /**
-     * Runtime config update — replaces current config with new values.
-     * Useful for hot-reloading blocklists without restarting the bot.
-     *
-     * @param {Partial<typeof DEFAULTS>} patch
-     */
     updateConfig(patch) {
       Object.assign(cfg, patch);
       if (patch.blockedUserIds) {

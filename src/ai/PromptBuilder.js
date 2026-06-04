@@ -5,27 +5,12 @@ const log = logger.child({ module: 'PromptBuilder' });
 
 const DEFAULT_HISTORY_TOKEN_BUDGET = 1_500;
 
-/**
- * @param {object} [config]
- * @param {number} [config.historyTokenBudget] - Max tokens to spend on history
- * @param {import('../memory/TokenBudgetManager.js').TokenBudgetManager} [config.tokenBudgetManager]
- *   Optional — if provided, its `trim()` is used instead of the built-in budget trimmer.
- */
 export function createPromptBuilder(config = {}) {
   const {
     historyTokenBudget   = DEFAULT_HISTORY_TOKEN_BUDGET,
     tokenBudgetManager   = null,
   } = config;
 
-  /**
-   * Constructs the system prompt from the persona config.
-   *
-   * The system prompt establishes identity, tone, and constraints.
-   * It is always the first message in the array.
-   *
-   * @param {import('../memory/PersonaMemoryService.js').PersonaConfig} persona
-   * @returns {string}
-   */
   function buildSystemPrompt(persona) {
     const {
       displayName  = 'Aman',
@@ -105,28 +90,6 @@ export function createPromptBuilder(config = {}) {
     return lines.join('\n');
   }
 
-  /**
-   * Converts ContextEntry[] from Redis into OpenAI-compatible message objects.
-   *
-   * ContextEntry shape (from ContextSchema.js):
-   * {
-   *   role:     'user' | 'bot',
-   *   userId:   string,
-   *   username: string,
-   *   text:     string,
-   *   ts:       string,
-   * }
-   *
-   * Mapping:
-   *   role 'user' → { role: 'user',      content: '<username>: <text>' }
-   *   role 'bot'  → { role: 'assistant', content: '<text>' }
-   *
-   * The username prefix on user messages lets the LLM distinguish between
-   * different viewers and reference them by name naturally.
-   *
-   * @param {Array<object>} history
-   * @returns {Array<{ role: string, content: string }>}
-   */
   function formatHistory(history) {
     return history
       .filter(entry => entry?.text?.trim())
@@ -139,22 +102,11 @@ export function createPromptBuilder(config = {}) {
       });
   }
 
-  /**
-   * Trims history messages to fit within the token budget.
-   * Removes from the oldest end (front of array) to preserve recent context.
-   *
-   * If a TokenBudgetManager was provided at construction, delegates to it.
-   *
-   * @param {Array<{ role, content }>} messages
-   * @param {number}                  budgetTokens
-   * @returns {Array<{ role, content }>}
-   */
   function trimToTokenBudget(messages, budgetTokens) {
     if (tokenBudgetManager) {
       return tokenBudgetManager.trim(messages, budgetTokens);
     }
 
-    // Built-in trimmer — removes from the front until we fit
     let total = 0;
     const reversed = [...messages].reverse();
     const kept     = [];
@@ -176,22 +128,6 @@ export function createPromptBuilder(config = {}) {
     return kept;
   }
 
-  /**
-   * Builds the final messages array from a contextPayload.
-   *
-   * @param {object} contextPayload
-   * @param {object}   contextPayload.persona
-   * @param {Array}    contextPayload.history
-   * @param {object}   contextPayload.trigger
-   * @param {string}   contextPayload.roomId
-   *
-   * @returns {Array<{ role: string, content: string }>}
-   *
-   * Output structure:
-   *   [0]       { role: 'system',    content: <system prompt>   }
-   *   [1..n-1]  { role: 'user'|'assistant', content: <history> }
-   *   [n]       { role: 'user',      content: <current comment> }
-   */
   function build(contextPayload) {
     const { persona, history = [], trigger, roomId } = contextPayload;
 
@@ -228,21 +164,9 @@ export function createPromptBuilder(config = {}) {
   }
 
   return {
-    /**
-     * Builds an OpenAI-compatible messages array from a contextPayload.
-     *
-     * @param   {object} contextPayload - assembled by ContextBuilder
-     * @returns {Array<{ role: string, content: string }>}
-     */
+    
     build,
 
-    /**
-     * Builds just the system prompt string from a persona config.
-     * Useful for testing / inspection without a full contextPayload.
-     *
-     * @param   {object} persona
-     * @returns {string}
-     */
     buildSystemPrompt,
   };
 }

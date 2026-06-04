@@ -1,37 +1,3 @@
-/**
- * SpeechSegmenter
- *
- * The bridge between VADProcessor and the STT service.
- *
- * VADProcessor emits two signals:
- *   Events.VAD_SPEECH_START — the speaker has started speaking
- *   Events.VAD_SPEECH_END   — the speaker has stopped speaking
- *
- * SpeechSegmenter listens to BOTH of those signals AND the raw SPEECH_CHUNK
- * events from AudioBuffer. While the VAD state is SPEAKING, it accumulates
- * every 30ms chunk into a growing buffer. When VAD_SPEECH_END fires, it
- * collects a short silence pad for natural boundaries, then emits a single
- * Events.UTTERANCE_READY event with the full utterance buffer — ready for
- * the STT service to consume.
- *
- * Edge cases handled:
- *  - Max utterance length: hard-flush at MAX_UTTERANCE_MS to prevent huge STT
- *    payloads when someone talks for a very long time
- *  - Minimum utterance length: drop utterances shorter than MIN_UTTERANCE_MS
- *    (avoids sending a single cough or pop to STT)
- *  - Room disconnect: discard in-progress utterance cleanly
- *  - Back-to-back speech: flush previous utterance before starting new one
- *
- * Emits (via EventBus):
- *  Events.UTTERANCE_READY — { roomId, speakerId, samples: Int16Array, sampleRate, durationMs, startTs, endTs }
- *
- * Consumes (via EventBus):
- *  Events.SPEECH_CHUNK      — raw 30ms PCM frames from AudioBuffer
- *  Events.VAD_SPEECH_START  — VAD declared speech started
- *  Events.VAD_SPEECH_END    — VAD declared speech ended
- *  Events.ROOM_DISCONNECTED — clean up state for the room
- */
-
 import bus, { Events } from '../core/EventBus.js';
 import logger          from '../utils/logger.js';
 import { concatInt16Arrays } from './AudioUtils.js';
@@ -41,26 +7,20 @@ const log = logger.child({ module: 'SpeechSegmenter' });
 const SAMPLE_RATE  = 16_000;
 const FRAME_SIZE_MS = 30;
 
-// Hard-flush an in-progress utterance if it exceeds this length.
-// Prevents sending a 30-second monologue to STT in one shot.
-// At 15s × 16kHz × 2 bytes = ~480KB — safe for all STT APIs.
 const MAX_UTTERANCE_MS     = 15_000;
-const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;   // 500 frames
+const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;   
 
-// Discard utterances shorter than this — likely noise, not speech
-const MIN_UTTERANCE_MS     = 300; // lowered from 300 to accept shorter utterances
-const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   // adjusted accordingly
+const MIN_UTTERANCE_MS     = 300; 
+const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   
 
-// Frames of silence to keep at the end of the utterance.
-// A natural trailing silence helps STT identify the last word correctly.
-const SILENCE_PAD_FRAMES = 5;   // 5 × 30ms = 150ms
+const SILENCE_PAD_FRAMES = 5;   
 
 function createSpeakerState(roomId, speakerId) {
   return {
     roomId,
     speakerId,
     isCapturing:    false,
-    frames:         [],      // Int16Array[] — accumulated 30ms chunks
+    frames:         [],      
     frameCount:     0,
     silencePadding: 0,
     startTs:        null,
@@ -70,7 +30,7 @@ function createSpeakerState(roomId, speakerId) {
 function createRoomState() {
   return {
     isCapturing:    false,
-    frames:         [],      // Int16Array[] — accumulated 30ms chunks
+    frames:         [],      
     frameCount:     0,
     silencePadding: 0,
     startTs:        null,
@@ -94,10 +54,6 @@ export function createSpeechSegmenter() {
     const state = speakers.get(key);
     if (!state || state.frames.length === 0) return;
 
-    // Snapshot what we need, then reset state before emitting.
-    // Resetting first makes the function re-entrance safe: if a downstream
-    // listener somehow triggers another flush for the same room synchronously,
-    // the state is already clean and the second flush is a no-op.
     const frames    = state.frames;
     const startTs   = state.startTs;
 
@@ -142,8 +98,6 @@ export function createSpeechSegmenter() {
     }
     const state = speakers.get(key);
 
-    // If already capturing (back-to-back speech with very brief silence gap),
-    // flush the previous utterance before starting fresh.
     if (state.isCapturing && state.frameCount > 0) {
       log.debug({ roomId, speakerId }, 'Speech start while already capturing — flushing previous utterance');
       flush(roomId, speakerId, ts);
@@ -163,7 +117,6 @@ export function createSpeechSegmenter() {
     const state = speakers.get(key);
     if (!state || !state.isCapturing) return;
 
-    // Mark VAD as ended — onChunk will collect SILENCE_PAD_FRAMES then flush.
     state.isCapturing    = false;
     state.silencePadding = 0;
 
@@ -179,14 +132,12 @@ export function createSpeechSegmenter() {
       state.frames.push(chunk);
       state.frameCount++;
 
-      // Hard-flush if the utterance has grown too long
       if (state.frameCount >= MAX_UTTERANCE_FRAMES) {
         log.warn(
           { roomId, speakerId, frames: state.frameCount, maxMs: MAX_UTTERANCE_MS },
           'Max utterance length reached — force-flushing'
         );
-        // flush() resets isCapturing to false, so we restore it immediately
-        // to keep collecting — the speaker is still talking.
+        
         const startTs = state.startTs;
         flush(roomId, speakerId, ts);
         state.isCapturing = true;
@@ -194,7 +145,7 @@ export function createSpeechSegmenter() {
       }
 
     } else if (state.frames.length > 0) {
-      // Silence padding phase (after VAD_SPEECH_END)
+      
       state.frames.push(chunk);
       state.silencePadding++;
 
@@ -202,7 +153,7 @@ export function createSpeechSegmenter() {
         flush(roomId, speakerId, ts);
       }
     }
-    // pure silence with no accumulated frames — nothing to do
+    
   }
 
   function onTrackRemoved({ roomId, participantId }) {

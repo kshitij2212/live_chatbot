@@ -47,12 +47,8 @@ export function createBotRunner() {
   let commentListener = null;
   let isShuttingDown  = false;
 
-  // roomRef is a shared mutable container.
-  // LiveKitConnector updates roomRef.room on connect/reconnect.
-  // ReplyPublisher reads roomRef.room when sending — always gets the live instance.
   const roomRef = { room: null };
 
-  // Tracks every bus.on() registration so unwireEvents() can clean up
   const listeners = [];
 
   function on(event, fn) {
@@ -73,7 +69,7 @@ export function createBotRunner() {
   function wireEvents() {
 
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
-      // Fix #2 — keep roomRef in sync so ReplyPublisher always has the live Room
+      
       if (room) roomRef.room = room;
       log.info({ roomId, roomName }, '🎙  Joined room');
       context.setMeta(roomId, {
@@ -95,13 +91,9 @@ export function createBotRunner() {
       log.info({ roomId, identity }, '👤 Participant left');
     });
 
-    // Wired now so the handler exists when STT is enabled.
-    // Does nothing while ENABLE_VOICE_STT is not set.
-
     on(Events.TRANSCRIPT_READY, async ({ roomId, text, speakerId }) => {
       if (!text?.trim() || isShuttingDown) return;
 
-      // Filter out common false positives from background noise
       const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay)$/i;
       if (blacklist.test(text.trim())) {
         log.debug({ roomId, text }, 'Blacklisted transcript (likely noise) — ignoring');
@@ -126,17 +118,6 @@ export function createBotRunner() {
       }
     });
 
-    // Flow:
-    //   COMMENT_RECEIVED
-    //     → CommentFilter (subscribed directly)
-    //       → COMMENT_ACCEPTED
-    //         → here (BotRunner) — stores in context, asks BehaviorEngine
-    //           → BEHAVIOR_APPROVED
-    //             → ContextBuilder — builds prompt
-    //               → CONTEXT_READY
-    //                 → LLMService — calls Groq
-    //                   → REPLY_READY
-
     on(Events.COMMENT_ACCEPTED, async ({ roomId, userId, username, text }) => {
       if (!text?.trim() || isShuttingDown) return;
       log.debug({ roomId, username, text }, '💬 Comment accepted');
@@ -156,17 +137,12 @@ export function createBotRunner() {
       }
     });
 
-    // LLMService emits REPLY_READY → BotRunner applies delay + moderation
-    // → emits REPLY_SEND → ReplyPublisher sends into the LiveKit room
-    // → emits REPLY_SENT → BotRunner logs confirmation
-
     on(Events.REPLY_READY, async ({ roomId, text, trigger, usage }) => {
       if (isShuttingDown) {
         log.debug({ roomId }, 'Shutdown in progress — dropping queued reply');
         return;
       }
 
-      // Typing delay — simulates human latency before sending
       const delayMs = trigger?.delayMs ?? 0;
       if (delayMs > 0) {
         log.debug({ roomId, delayMs }, '⌨️  Simulating typing delay');
@@ -176,19 +152,15 @@ export function createBotRunner() {
       if (isShuttingDown) return;
 
       try {
-        // Moderation check before storing or sending
+        
         const modResult = await moderation.check(text);
         if (!modResult.safe) {
           log.warn({ roomId, reason: modResult.reason }, 'Moderation flagged reply — dropping');
           return;
         }
 
-        // Store bot reply in context BEFORE sending so history is consistent
-        // even if the send fails
         await context.addBotReply(roomId, text);
 
-        // Hand off to ReplyPublisher via the event bus
-        // ReplyPublisher listens to REPLY_SEND and calls room.localParticipant.sendChatMessage()
         bus.emit(Events.REPLY_SEND, { roomId, trigger, text, usage });
 
       } catch (err) {
@@ -266,7 +238,6 @@ export function createBotRunner() {
     });
     log.debug('✓ ContextBuilder');
 
-    // Fix #3 — createResponseParser takes a single config object, not (persona, options)
     responseParser = createResponseParser({ maxReplyChars: 300 });
     log.debug('✓ ResponseParser');
 
@@ -296,16 +267,6 @@ export function createBotRunner() {
 
     commentListener = createCommentListener();
     log.debug('✓ CommentListener');
-
-    // Fix #1 — default is SKIPPED, not full pipeline.
-    // Set AUDIO_PIPELINE_STAGE=1/2/3/4 explicitly to enable stages.
-    // Unset or '0' = comment-only mode, no audio processing.
-    // AUDIO_PIPELINE_STAGE levels:
-    //   0 or unset → skip all audio (safe default, no OOM risk)
-    //   1          → AudioBuffer only
-    //   2          → AudioBuffer + VAD
-    //   3          → AudioBuffer + VAD + SpeechSegmenter
-    //   4          → full pipeline including STT
 
     const audioStage = Number(process.env.AUDIO_PIPELINE_STAGE ?? '0');
     log.info({ audioStage }, `Audio pipeline stage: ${audioStage === 0 ? 'DISABLED' : audioStage}`);
@@ -352,8 +313,6 @@ export function createBotRunner() {
     });
     log.debug('✓ LiveKitConnector');
 
-    // Fix #2 — roomRef is a shared object; connector must update it on connect
-    // LiveKitConnector exposes getRoom() for this purpose
     replyPublisher = createReplyPublisher({
       roomRef,
       botIdentity:    config.livekit.botIdentity,
@@ -369,9 +328,6 @@ export function createBotRunner() {
     log.info({ room: config.livekit.roomName }, 'Connecting to LiveKit room...');
     await connector.connect();
 
-    // Seed roomRef.room immediately after connect for ReplyPublisher
-    // ROOM_CONNECTED event also updates it, but this covers the window
-    // between connect() resolving and the event firing
     if (connector.getRoom) roomRef.room = connector.getRoom();
 
     log.info('═══════════════════════════════════════════');
@@ -385,10 +341,8 @@ export function createBotRunner() {
 
     log.info({ reason }, 'Shutting down bot...');
 
-    // Stop accepting new events first
     unwireEvents();
 
-    // Destroy services in reverse dependency order
     llm?.destroy();
     contextBuilder?.destroy();
     replyPublisher?.destroy();
@@ -408,7 +362,6 @@ export function createBotRunner() {
       log.info('Redis disconnected');
     }
 
-    // Null roomRef so any late ReplyPublisher calls fail fast
     roomRef.room = null;
 
     log.info('Bot stopped cleanly. Goodbye.');

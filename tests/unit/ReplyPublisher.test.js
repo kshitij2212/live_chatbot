@@ -1,9 +1,7 @@
-// Jest unit tests for ReplyPublisher
 import bus, { Events } from '../../src/core/EventBus.js';
 import { jest } from '@jest/globals';
 import { createReplyPublisher } from '../../src/realtime/ReplyPublisher.js';
 
-// Mock LiveKit room
 const mockLocalParticipant = {
   sendChatMessage: jest.fn().mockResolvedValue(undefined),
   publishData: jest.fn().mockResolvedValue(undefined),
@@ -27,7 +25,7 @@ describe('ReplyPublisher', () => {
       text: 'Hello world',
     };
     bus.emit(Events.REPLY_SEND, payload);
-    // wait for async handling
+    
     await new Promise(process.nextTick);
     expect(mockLocalParticipant.sendChatMessage).toHaveBeenCalledWith('Hello world');
     expect(publisher.getStats().sent).toBe(1);

@@ -1,28 +1,3 @@
-/**
- * RoomEventEmitter
- *
- * Responsibility: translate raw LiveKit room events into normalized internal
- * bus events. Nothing outside this file should import from @livekit/rtc-node.
- *
- * Comment-ingestion contract
- * ──────────────────────────
- * Two separate code paths produce comment events, intentionally kept distinct:
- *
- *  • onDataReceived  → emits Events.COMMENT_RAW
- *      Raw binary payload from the LiveKit data channel. The shape of the
- *      JSON inside is controlled by the broadcaster's client SDK and is NOT
- *      guaranteed. CommentParser (src/comments/CommentParser.js) owns
- *      deserialization and validation before anything downstream consumes it.
- *
- *  • onChatMessage   → emits Events.COMMENT_RECEIVED
- *      Structured message from LiveKit's native Chat API. Already decoded and
- *      typed by the SDK; emitted with a normalized shape that CommentFilter
- *      and downstream listeners can consume directly without further parsing.
- *
- * Downstream listeners must NOT subscribe to both events for the same logical
- * comment — a single chat message will arrive via one path only depending on
- * how the broadcaster's client sends it.
- */
 import { RoomEvent, TrackKind, AudioStream } from '@livekit/rtc-node';
 import bus, { Events } from '../core/EventBus.js';
 import logger from '../utils/logger.js';
@@ -33,24 +8,13 @@ const textDecoder = new TextDecoder();
 export function createRoomEventEmitter(room, config) {
   const { roomId, botUserId, ownerIdentity = null } = config;
 
-  // trackSid → AbortController
-  // TODO(backpressure): if the event bus consumer (VADProcessor) falls behind,
-  // AUDIO_FRAME events will queue unboundedly in Node's event loop. Consider
-  // adding a high-water-mark counter per trackSid and dropping/logging frames
-  // when the lag exceeds a threshold (e.g. > 500 ms of buffered audio).
   const audioStreams = new Map();
 
   async function runAudioFrameLoop(audioStream, trackSid, speakerId, abortSignal) {
     const reader = audioStream.getReader();
 
-    // Wake the awaiting reader.read() when abort fires.
-    // Note: do NOT use `Promise.race([reader.read(), abortPromise])` here.
-    // That pattern is a known memory leak — each iteration attaches a fresh
-    // `then` callback to the long-lived abortPromise's reaction list, and
-    // because abortPromise never resolves, those callbacks (each retaining
-    // a wrapper promise) accumulate forever.
     const onAbort = () => {
-      try { reader.cancel(); } catch { /* already cancelled */ }
+      try { reader.cancel(); } catch {  }
     };
     if (abortSignal.aborted) {
       onAbort();
@@ -76,15 +40,10 @@ export function createRoomEventEmitter(room, config) {
 
         frameCount++;
 
-        // Periodic heap growth log — leaves a trail in stdout when the
-        // process is approaching OOM, so the leak source can be identified
-        // from the rate of growth (steady ramp = SDK-side queue, sudden
-        // jumps = downstream listener buildup).
         const now = Date.now();
         if (now - lastHeapLogTs >= 1000) {
           const mu = process.memoryUsage();
-          // Sync stderr — pino's transport is buffered and a fast OOM
-          // can happen before any of those lines reach the terminal.
+          
           process.stderr.write(
             `[heap] frames=${frameCount} ` +
             `heap=${Math.round(mu.heapUsed / 1024 / 1024)}/${Math.round(mu.heapTotal / 1024 / 1024)}MB ` +
@@ -96,7 +55,6 @@ export function createRoomEventEmitter(room, config) {
           frameCount = 0;
         }
 
-        // Testing hack removed, we will test downstream pipelines
         if (process.env.AUDIO_DROP_FRAMES === '1') {
           continue;
         }
@@ -105,18 +63,13 @@ export function createRoomEventEmitter(room, config) {
           roomId,
           speakerId,
           trackSid,
-          data:              frame.data,           // Int16Array, 16kHz mono
-          sampleRate:        frame.sampleRate,     // always 16000
-          channels:          frame.channels,       // always 1
+          data:              frame.data,           
+          sampleRate:        frame.sampleRate,     
+          channels:          frame.channels,       
           samplesPerChannel: frame.samplesPerChannel,
           ts:                now,
         });
 
-        // Yield to the event loop's timer queue. If reader.read() resolves
-        // synchronously because of a backlog, a tight while(await) loop will
-        // starve the event loop and OOM the process. setTimeout(..., 0) guarantees
-        // yielding through all libuv phases (I/O, check, timers) whereas
-        // setImmediate may trap execution in the check phase.
         await new Promise(r => setTimeout(r, 0));
 
         if (frameCount % 100 === 0 && global.gc) {
@@ -125,7 +78,7 @@ export function createRoomEventEmitter(room, config) {
       }
     } finally {
       abortSignal.removeEventListener?.('abort', onAbort);
-      try { reader.releaseLock(); } catch { /* already released */ }
+      try { reader.releaseLock(); } catch {  }
     }
   }
 
@@ -135,12 +88,6 @@ export function createRoomEventEmitter(room, config) {
       return;
     }
 
-    // frameSizeMs: 30 batches frames at the SDK level. Without this the
-    // native side emits ~10ms frames (~100 Hz), and each one allocates an
-    // AudioFrame holding an FfiHandle whose retained microtask continuations
-    // accumulate faster than the GC can reclaim them — the process OOMs in
-    // ~20s. Batching to 30ms gives ~33 Hz, matching the VAD window exactly
-    // and removing the need for a per-frame drop throttle in this loop.
     const audioStream     = new AudioStream(track, { sampleRate: 16000, numChannels: 1, frameSizeMs: 30 });
     const abortController = new AbortController();
 
@@ -176,8 +123,6 @@ export function createRoomEventEmitter(room, config) {
     log.info({ roomId }, 'Room connected');
     bus.emit(Events.ROOM_CONNECTED, { roomId, roomName: room.name });
 
-    // Wire participants already present when the bot joined.
-    // This handles the race where remoteParticipants exist before Connected fires.
     for (const [, participant] of room.remoteParticipants) {
       log.debug({ identity: participant.identity }, 'Wiring pre-existing participant');
       onParticipantConnected(participant);
@@ -204,8 +149,6 @@ export function createRoomEventEmitter(room, config) {
     log.info({ roomId }, 'Room reconnected');
     bus.emit(Events.ROOM_RECONNECTED, { roomId });
 
-    // After a reconnect, LiveKit may have replaced track SIDs for existing
-    // participants. Stop stale readers and re-wire from the current state.
     stopAllAudioReaders();
 
     for (const [, participant] of room.remoteParticipants) {
@@ -231,9 +174,6 @@ export function createRoomEventEmitter(room, config) {
   function onParticipantDisconnected(participant) {
     log.info({ identity: participant.identity }, 'Participant left');
 
-    // Defensively stop any audio readers for this participant.
-    // TrackUnsubscribed events normally arrive first, but abrupt network
-    // disconnects can prevent them — leaving stale readers alive indefinitely.
     for (const [trackSid, entry] of audioStreams) {
       if (entry.speakerId === participant.identity) {
         log.debug({ trackSid, identity: participant.identity }, 'Stopping orphaned audio reader on participant disconnect');
@@ -269,9 +209,6 @@ export function createRoomEventEmitter(room, config) {
       publication,
     });
 
-    // Voice STT is gated behind ENABLE_VOICE_STT=true because the continuous
-    // AudioStream read loop creates allocation pressure that OOMs the process.
-    // Disable by default until a proper backpressure mechanism is in place.
     if (process.env.ENABLE_VOICE_STT === 'true') {
       startAudioFrameReader(track, publication.sid, participant.identity);
     } else {
@@ -295,16 +232,8 @@ export function createRoomEventEmitter(room, config) {
   function onDataReceived(payload, participant, _kind, topic) {
     if (!participant || participant.identity === botUserId) return;
 
-    // Topic filter: intentionally only process 'chat' topic or untagged messages.
-    // Other topics (e.g. reactions, presence pings) are unrelated to comment
-    // ingestion and should not be forwarded to CommentParser.
-    // TODO(reliable-filter): also check _kind === DataPacketKind.RELIABLE once
-    // the broadcaster client is confirmed to send chat data as RELIABLE packets.
-    // LOSSY packets are acceptable for ephemeral data (e.g. cursor positions)
-    // but not for chat messages that must be processed exactly once.
     if (topic != null && topic !== 'chat' && topic !== 'lk.chat') return;
 
-    // Guard: TextDecoder.decode() throws TypeError if payload is not a BufferSource
     if (!(payload instanceof ArrayBuffer) && !ArrayBuffer.isView(payload)) {
       log.warn({ type: typeof payload }, 'Data channel payload is not a BufferSource — dropping');
       return;
@@ -320,11 +249,6 @@ export function createRoomEventEmitter(room, config) {
 
     if (!decoded.trim()) return;
 
-    // Emits COMMENT_RAW — shape is unvalidated. CommentParser must handle
-    // malformed JSON, missing fields, and unexpected payload versions before
-    // re-emitting as COMMENT_RECEIVED.
-    // CONTRACT: do NOT subscribe to COMMENT_RAW outside of CommentParser.
-    // Direct subscribers receive raw, unvalidated, potentially malicious data.
     bus.emit(Events.COMMENT_RAW, {
       rawPayload:    decoded,
       participantId: participant?.identity ?? 'unknown',
@@ -333,16 +257,10 @@ export function createRoomEventEmitter(room, config) {
     });
   }
 
-  // Emits COMMENT_RECEIVED directly — bypasses COMMENT_RAW / CommentParser
-  // entirely because the LiveKit Chat API already provides a structured,
-  // SDK-validated payload. The shape emitted here is the canonical
-  // COMMENT_RECEIVED contract that all downstream listeners expect.
   function onChatMessage(message, participant) {
     if (participant?.identity === botUserId) return;
     if (!message?.message?.trim()) return;
 
-    // Validate timestamp — guard against non-numeric truthy values producing
-    // an "Invalid Date" which would throw on .toISOString().
     let ts;
     if (message.timestamp != null) {
       const d = new Date(message.timestamp);
@@ -360,13 +278,6 @@ export function createRoomEventEmitter(room, config) {
       source:   'chat_message',
     });
   }
-
-  // Newer LiveKit clients (web SDK >= 2.x) send chat via the TextStream API
-  // on topic `lk.chat` instead of the legacy ChatMessage / DataPacket paths.
-  // Without a registered handler the SDK logs:
-  //   "ignoring incoming text stream due to no handler for topic: lk.chat"
-  // and the message is dropped. Emit COMMENT_RECEIVED with the same canonical
-  // shape used by onChatMessage so downstream listeners need no changes.
 
   const CHAT_TOPICS = ['lk.chat', 'chat'];
 
@@ -447,16 +358,14 @@ export function createRoomEventEmitter(room, config) {
       for (const topic of CHAT_TOPICS) {
         try {
           room.unregisterTextStreamHandler(topic);
-        } catch { /* ignore */ }
+        } catch {  }
       }
     }
 
     log.debug({ roomId }, 'RoomEventEmitter detached');
   }
 
-  // Attach immediately on creation
   attach();
 
-  // Only expose what callers actually need
   return { detach };
 }

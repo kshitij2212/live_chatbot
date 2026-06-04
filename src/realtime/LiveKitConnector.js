@@ -24,20 +24,6 @@ const TERMINAL_REASONS = new Set([
   'intentional',
 ]);
 
-/**
- * Creates a LiveKitConnector instance.
- *
- * @param {object} config
- * @param {string} config.url              - LiveKit server WebSocket URL
- * @param {string} config.tokenApiUrl      - API endpoint to fetch a LiveKit token
- * @param {string} config.roomName         - Room to join
- * @param {string} config.botIdentity      - Participant identity for the bot
- * @param {string} [config.botDisplayName] - Human-readable display name shown in the room
- * @param {string} [config.ownerIdentity]  - If set, audio is only captured from this participant
- * @param {number} [config.reconnectAttempts]
- * @param {number} [config.reconnectBaseMs]
- * @param {number} [config.reconnectMaxMs]
- */
 export function createLiveKitConnector(config) {
   const {
     url,
@@ -87,9 +73,6 @@ export function createLiveKitConnector(config) {
     state = newState;
     isConnected = (state === ConnectorState.CONNECTED);
   }
-
-  // Fetches a fresh token from the manager's API on every connect/reconnect.
-  // This ensures the token is always valid and never expired.
 
   async function generateToken() {
     if (tokenApiUrl) {
@@ -378,15 +361,11 @@ export function createLiveKitConnector(config) {
 
       const lp = room.localParticipant;
 
-      // Modern LiveKit clients (meet.livekit.io, web SDK >= 2.x) render chat
-      // exclusively from the TextStream API on topic `lk.chat`.
       if (typeof lp.sendText === 'function') {
         await lp.sendText(text, { topic: 'lk.chat' });
         log.debug({ roomId, text }, 'Reply published via sendText(lk.chat)');
       }
 
-      // Best-effort fallback for older clients still listening on the legacy
-      // ChatMessage event.
       if (typeof lp.sendChatMessage === 'function') {
         try {
           await lp.sendChatMessage(text);

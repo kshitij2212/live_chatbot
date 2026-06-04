@@ -1,11 +1,3 @@
-// Single source of truth for all configuration values.
-// Priority (highest → lowest):
-//   1. Environment variables  (process.env.*)
-//   2. Values defined here    (defaults)
-// All env vars are read once at startup. Changing them at runtime has no effect.
-// Sensitive values (API keys, secrets) are NEVER hardcoded here —
-// they must be set in .env and will throw if missing in production.
-
 function env(key, fallback) {
   const val = process.env[key];
   if (val !== undefined && val.trim() !== '') return val.trim();
@@ -38,19 +30,16 @@ function envFloat(key, fallback) {
 const config = {
 
   livekit: {
-    url:          env('LIVEKIT_URL',          'wss://livestreaming-wfekhupp.livekit.cloud'),
+    url:          env('LIVEKIT_URL',          'wss:
     apiKey:       env('LIVEKIT_API_KEY',      'devkey'),
     apiSecret:    env('LIVEKIT_API_SECRET',   'devsecret'),
     roomName:     env('LIVEKIT_ROOM',         'test-room'),
     botIdentity:  env('BOT_IDENTITY',         'zara-bot'),
     botDisplayName: env('BOT_DISPLAY_NAME',   'Zara'),
-    // Persona file id under config/personas/<botPersona>.json.
-    // Separate from botIdentity so the LiveKit identity can include suffixes
-    // like "-bot" while the persona file stays clean (e.g. "aman.json").
+    
     botPersona:   env('BOT_PERSONA',          'zara'),
     tokenApiUrl: env('LIVEKIT_TOKEN_API', ''),
 
-    // New bot config for internal usage
     bot: {
       userId: env('BOT_IDENTITY', 'zara-bot'),
       username: env('BOT_DISPLAY_NAME', 'Zara'),
@@ -63,7 +52,7 @@ const config = {
   },
 
   groq: {
-    apiKey:      env('GROQ_API_KEY', ''),            // fallback empty string for tests
+    apiKey:      env('GROQ_API_KEY', ''),            
     model:       env('GROQ_MODEL',    'llama-3.3-70b-versatile'),
     maxTokens:   envInt('GROQ_MAX_TOKENS',   256),
     temperature: envFloat('GROQ_TEMPERATURE', 0.85),
@@ -73,33 +62,30 @@ const config = {
   },
 
   redis: {
-    url:         env('REDIS_URL', 'redis://localhost:6379'),
-    // TTL in seconds for a room's context key after last activity.
-    // 2 hours — if the stream goes idle, context expires automatically.
+    url:         env('REDIS_URL', 'redis:
+    
     contextTtlSeconds: envInt('REDIS_CONTEXT_TTL_SECONDS', 7200),
   },
 
   context: {
-    // Max number of messages kept in the rolling window per room.
+    
     windowSize: envInt('CONTEXT_WINDOW_SIZE', 20),
   },
 
   prompt: {
-    // Max tokens allocated to history in the prompt.
-    // System prompt + current message + reply headroom are in addition to this.
+    
     historyTokenBudget: envInt('PROMPT_HISTORY_TOKEN_BUDGET', 1500),
   },
 
   behavior: {
-    // Minimum ms between replies to the same user
+    
     perUserCooldownMs:  envInt('REPLY_COOLDOWN_MS',        30000),
-    // Minimum ms between any two replies in the room
+    
     globalCooldownMs:   envInt('GLOBAL_RATE_LIMIT_MS',     8000),
-    // Typing delay range (human-like pause before sending)
+    
     typingDelayMinMs:   envInt('TYPING_DELAY_MIN_MS',      1500),
     typingDelayMaxMs:   envInt('TYPING_DELAY_MAX_MS',      4000),
-    // Probability of replying to a valid comment (0.0–1.0).
-    // 1.0 = always reply. Lower values make the bot feel more selective.
+    
     replyProbability:   envFloat('REPLY_PROBABILITY',      0.85),
   },
 

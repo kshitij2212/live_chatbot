@@ -1,4 +1,3 @@
-// Jest unit tests for PromptInjectionGuard
 import { sanitise } from '../../src/moderation/PromptInjectionGuard.js';
 
 describe('PromptInjectionGuard.sanitise', () => {

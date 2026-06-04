@@ -1,6 +1,3 @@
-// scripts/start-bot.js
-// Entry point script to start the Roxstar AI bot.
-
 import { createBotRunner } from '../src/core/BotRunner.js';
 import { registerSignalHandlers } from '../src/core/BotRunner.js';
 

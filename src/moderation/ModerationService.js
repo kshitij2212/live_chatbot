@@ -1,14 +1,11 @@
 import { sanitise }                 from './PromptInjectionGuard.js';
-import { GroqModerationAdapter }    from './GroqModerationAdapter.js';  // ← swapped
+import { GroqModerationAdapter }    from './GroqModerationAdapter.js';  
 import logger                       from '../utils/logger.js';
 
 const log = logger.child({ module: 'ModerationService' });
 
 export class ModerationService {
-  /**
-   * @param {object} [options]
-   * @param {string} [options.groqKey] - Groq API key for Llama Guard moderation
-   */
+  
   constructor({ groqKey } = {}) {
   groqKey ??= process.env.GROQ_API_KEY;
 
@@ -21,10 +18,6 @@ export class ModerationService {
   }
 }
 
-  /**
-   * @param {string} text - Bot reply text to inspect
-   * @returns {Promise<{ safe: boolean, reason: string | null }>}
-   */
   async check(text) {
     if (!text?.trim()) {
       return { safe: true, reason: null };
@@ -47,7 +40,7 @@ export class ModerationService {
           };
         }
       } catch (err) {
-        // Fail open — moderation outage should not silence the bot.
+        
         log.error({ err }, 'Groq Moderation (Llama Guard) unavailable — failing open');
       }
     }
