@@ -30,7 +30,7 @@ function envFloat(key, fallback) {
 const config = {
 
   livekit: {
-    url:          env('LIVEKIT_URL',          'wss:
+    url:          env('LIVEKIT_URL',          'wss://livestreaming-wfekhupp.livekit.cloud'),
     apiKey:       env('LIVEKIT_API_KEY',      'devkey'),
     apiSecret:    env('LIVEKIT_API_SECRET',   'devsecret'),
     roomName:     env('LIVEKIT_ROOM',         'test-room'),
@@ -62,7 +62,7 @@ const config = {
   },
 
   redis: {
-    url:         env('REDIS_URL', 'redis:
+    url:         env('REDIS_URL', 'redis://localhost:6379'),
     
     contextTtlSeconds: envInt('REDIS_CONTEXT_TTL_SECONDS', 7200),
   },
@@ -87,6 +87,8 @@ const config = {
     typingDelayMaxMs:   envInt('TYPING_DELAY_MAX_MS',      4000),
     
     replyProbability:   envFloat('REPLY_PROBABILITY',      0.85),
+
+    botNameAliases:     env('BOT_NAME_ALIASES', '').split(',').map(s => s.trim()).filter(Boolean),
   },
 
   commentFilter: {
