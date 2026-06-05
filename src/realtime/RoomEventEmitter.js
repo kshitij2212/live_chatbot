@@ -43,7 +43,7 @@ export function createRoomEventEmitter(room, config) {
         const now = Date.now();
         if (now - lastHeapLogTs >= 1000) {
           const mu = process.memoryUsage();
-          
+
           process.stderr.write(
             `[heap] frames=${frameCount} ` +
             `heap=${Math.round(mu.heapUsed / 1024 / 1024)}/${Math.round(mu.heapTotal / 1024 / 1024)}MB ` +
@@ -63,9 +63,9 @@ export function createRoomEventEmitter(room, config) {
           roomId,
           speakerId,
           trackSid,
-          data:              new Int16Array(frame.data),  
-          sampleRate:        frame.sampleRate,     
-          channels:          frame.channels,       
+          data:              new Int16Array(frame.data),
+          sampleRate:        frame.sampleRate,
+          channels:          frame.channels,
           samplesPerChannel: frame.samplesPerChannel,
           ts:                now,
         });

@@ -8,19 +8,19 @@ const SAMPLE_RATE  = 16_000;
 const FRAME_SIZE_MS = 30;
 
 const MAX_UTTERANCE_MS     = 15_000;
-const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;   
+const MAX_UTTERANCE_FRAMES = MAX_UTTERANCE_MS / FRAME_SIZE_MS;
 
-const MIN_UTTERANCE_MS     = 200; 
-const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;   
+const MIN_UTTERANCE_MS     = 200;
+const MIN_UTTERANCE_FRAMES = MIN_UTTERANCE_MS / FRAME_SIZE_MS;
 
-const SILENCE_PAD_FRAMES = 5;   
+const SILENCE_PAD_FRAMES = 5;
 
 function createSpeakerState(roomId, speakerId) {
   return {
     roomId,
     speakerId,
     isCapturing:    false,
-    frames:         [],      
+    frames:         [],
     frameCount:     0,
     silencePadding: 0,
     startTs:        null,
@@ -30,7 +30,7 @@ function createSpeakerState(roomId, speakerId) {
 function createRoomState() {
   return {
     isCapturing:    false,
-    frames:         [],      
+    frames:         [],
     frameCount:     0,
     silencePadding: 0,
     startTs:        null,
@@ -49,7 +49,7 @@ export function createSpeechSegmenter() {
   function flush(roomId, speakerId, ts) {
 
     log.debug({ roomId, speakerId, ts }, '🗣️ flush() entered');
-  
+
     const key = getSpeakerKey(roomId, speakerId);
     const state = speakers.get(key);
     if (!state || state.frames.length === 0) return;
@@ -137,7 +137,7 @@ export function createSpeechSegmenter() {
           { roomId, speakerId, frames: state.frameCount, maxMs: MAX_UTTERANCE_MS },
           'Max utterance length reached — force-flushing'
         );
-        
+
         const startTs = state.startTs;
         flush(roomId, speakerId, ts);
         state.isCapturing = true;
@@ -145,7 +145,7 @@ export function createSpeechSegmenter() {
       }
 
     } else if (state.frames.length > 0) {
-      
+
       state.frames.push(chunk);
       state.silencePadding++;
 
@@ -153,7 +153,7 @@ export function createSpeechSegmenter() {
         flush(roomId, speakerId, ts);
       }
     }
-    
+
   }
 
   function onTrackRemoved({ roomId, participantId }) {

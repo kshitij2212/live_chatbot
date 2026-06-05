@@ -9,9 +9,9 @@ export function createCommentListener(config = {}) {
   );
 
   const stats = {
-    received:   0,   
-    ignored:    0,   
-    forwarded:  0,   
+    received:   0,
+    ignored:    0,
+    forwarded:  0,
   };
 
   function onCommentReceived(comment) {
@@ -38,7 +38,7 @@ export function createCommentListener(config = {}) {
   log.debug('CommentListener registered');
 
   return {
-    
+
     destroy() {
       bus.off(Events.COMMENT_RECEIVED, onCommentReceived);
       log.debug('CommentListener destroyed');

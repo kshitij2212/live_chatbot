@@ -7,7 +7,7 @@ function parsePayload(raw) {
   const trimmed = raw.trim();
 
   if (!trimmed.startsWith('{')) {
-    
+
     return { text: trimmed };
   }
 
@@ -45,15 +45,15 @@ function normaliseTimestamp(raw) {
 
 function sanitiseText(text) {
   return text
-    .replace(/\0/g, '')       
-    .replace(/\s+/g, ' ')     
+    .replace(/\0/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 function onCommentRaw({ rawPayload, participantId, roomId, source }) {
-  
+
   const parsed = parsePayload(rawPayload);
-  if (!parsed) return;  
+  if (!parsed) return;
 
   const rawText = typeof parsed.text === 'string' ? parsed.text : '';
   const text    = sanitiseText(rawText);
@@ -79,7 +79,7 @@ function onCommentRaw({ rawPayload, participantId, roomId, source }) {
     username,
     text,
     ts,
-    source: 'data_channel',   
+    source: 'data_channel',
   };
 
   log.debug({ roomId, userId, username, textLen: text.length }, 'Comment parsed');

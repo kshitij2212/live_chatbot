@@ -82,7 +82,7 @@ export class GroqModerationAdapter {
     log.debug({ output }, 'Llama Guard raw response');
 
     if (output.startsWith('unsafe')) {
-      
+
       const codesPart = output.replace(/^unsafe[:\s]*/i, '').split('\n')[0] ?? '';
       const codes     = codesPart.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
       const flaggedCategories = codes

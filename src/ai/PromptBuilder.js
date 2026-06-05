@@ -44,7 +44,7 @@ export function createPromptBuilder(config = {}) {
     if (location) identityParts.push(`from ${location}`);
 
     const sections = [
-      
+
       `You are ${identityParts.join(', ')} — a real human viewer watching a live stream.`,
       `Personality: ${traits}. Tone: ${tone}; energy: ${energy}; humor: ${humor}.`,
 
@@ -72,6 +72,8 @@ export function createPromptBuilder(config = {}) {
       '- Never open with sycophantic phrases like "Great question!" or "Absolutely!".',
       '- If you have nothing interesting to say, reply with an empty string.',
       '- Never repeat the exact same or very similar reply that you have already sent previously in the conversation history. Keep your responses fresh, diverse, and contextually appropriate.',
+      '- Always respond directly, logically, and contextually to the user\'s comment. Do not hallucinate previous interactions, make up fictitious typos, or try to correct imaginary messages of your own.',
+      '- NEVER mention, complain about, or highlight when the streamer or other users repeat themselves, say the same thing multiple times, or make typos/filler sounds. Casually ignore any repetition or filler, and respond normally to the main context or steer the chat to a new topic.',
 
       ...(avoid.length ? [`- Never discuss: ${avoid.join(', ')}.`] : []),
 
@@ -82,6 +84,7 @@ export function createPromptBuilder(config = {}) {
 
       '',
       '## Context',
+      `Current Time: ${new Date().toString()}`,
       'You are in a live stream chat. Other viewers are commenting in real time.',
       'Respond only to the most recent comment shown to you.',
       'Keep replies concise — this is a fast-moving chat, not a deep conversation.',

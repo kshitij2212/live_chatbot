@@ -66,7 +66,7 @@ export function createContextMemory(redis, config = {}) {
 
   async function setMeta(roomId, meta) {
     const key = keys.meta(roomId);
-    
+
     const pairs = Object.entries(meta).flat();
     await redis
       .pipeline()
@@ -77,7 +77,7 @@ export function createContextMemory(redis, config = {}) {
 
   async function getMeta(roomId) {
     const data = await redis.hgetall(keys.meta(roomId));
-    
+
     return Object.keys(data).length ? data : null;
   }
 

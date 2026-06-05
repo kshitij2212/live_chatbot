@@ -32,7 +32,7 @@ export async function retry(fn, options = {}) {
 
       const base  = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
       const delay = jitter
-        ? Math.round(base * (0.8 + Math.random() * 0.4))  
+        ? Math.round(base * (0.8 + Math.random() * 0.4))
         : base;
 
       if (onRetry) onRetry(err, attempt);

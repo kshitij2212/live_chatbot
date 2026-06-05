@@ -11,22 +11,22 @@ const MAX_BUFFER_MS = 500;
 
 const SAMPLE_RATE = 16_000;
 
-const SAMPLES_PER_CHUNK  = Math.round((SAMPLE_RATE * CHUNK_SIZE_MS) / 1000);  
-const MAX_BUFFER_SAMPLES = Math.round((SAMPLE_RATE * MAX_BUFFER_MS) / 1000);  
+const SAMPLES_PER_CHUNK  = Math.round((SAMPLE_RATE * CHUNK_SIZE_MS) / 1000);
+const MAX_BUFFER_SAMPLES = Math.round((SAMPLE_RATE * MAX_BUFFER_MS) / 1000);
 
 function createRingBuffer(capacity) {
-  const buf      = new Int16Array(capacity);  
-  const chunkBuf = new Int16Array(SAMPLES_PER_CHUNK); 
-  let writePos = 0;  
-  let count    = 0;  
+  const buf      = new Int16Array(capacity);
+  const chunkBuf = new Int16Array(SAMPLES_PER_CHUNK);
+  let writePos = 0;
+  let count    = 0;
 
   return {
-    
+
     write(samples) {
       const len = samples.length;
 
       if (len >= capacity) {
-        
+
         buf.set(samples.subarray(len - capacity));
         writePos = 0;
         count    = capacity;
@@ -35,7 +35,7 @@ function createRingBuffer(capacity) {
 
       const overflow = count + len - capacity;
       if (overflow > 0) {
-        
+
         count = capacity - len;
       }
 
@@ -43,7 +43,7 @@ function createRingBuffer(capacity) {
       if (endPos <= capacity) {
         buf.set(samples, writePos);
       } else {
-        
+
         const firstPart = capacity - writePos;
         buf.set(samples.subarray(0, firstPart), writePos);
         buf.set(samples.subarray(firstPart), 0);
@@ -178,7 +178,7 @@ export function createAudioBuffer() {
     bus.on(Events.ROOM_DISCONNECTED,   onRoomDisconnected);
 
     statsInterval = setInterval(logStats, 10_000);
-    
+
     statsInterval.unref();
 
     log.info(

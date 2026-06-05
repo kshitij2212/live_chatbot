@@ -20,7 +20,7 @@ function patchFile(relativePath, replacements) {
 
   for (const { pattern, replacement, description } of replacements) {
     if (content.includes(replacement)) {
-      
+
       continue;
     }
     if (content.includes(pattern)) {

@@ -13,7 +13,7 @@ const transport = isDev
         messageFormat:   '[{module}] {msg}',
       },
     }
-  : undefined;  
+  : undefined;
 
 const logger = pino(
   {

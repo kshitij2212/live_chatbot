@@ -7,7 +7,7 @@ const log = logger.child({ module: 'PersonaMemoryService' });
 const PERSONAS_DIR = resolve(process.cwd(), 'config', 'personas');
 
 export function createPersonaMemory() {
-  
+
   const cache = new Map();
 
   function load(botId) {

@@ -1,11 +1,11 @@
 import { sanitise }                 from './PromptInjectionGuard.js';
-import { GroqModerationAdapter }    from './GroqModerationAdapter.js';  
+import { GroqModerationAdapter }    from './GroqModerationAdapter.js';
 import logger                       from '../utils/logger.js';
 
 const log = logger.child({ module: 'ModerationService' });
 
 export class ModerationService {
-  
+
   constructor({ groqKey } = {}) {
   groqKey ??= process.env.GROQ_API_KEY;
 
@@ -40,7 +40,7 @@ export class ModerationService {
           };
         }
       } catch (err) {
-        
+
         log.error({ err }, 'Groq Moderation (Llama Guard) unavailable — failing open');
       }
     }

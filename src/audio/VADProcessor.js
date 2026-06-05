@@ -3,14 +3,14 @@ import logger          from '../utils/logger.js';
 
 const log = logger.child({ module: 'VADProcessor' });
 
-const MIN_ENERGY_THRESHOLD   = 100;   
-const ADAPTIVE_MULTIPLIER    = 2;     
-const CALIBRATION_FRAMES     = 33;    
+const MIN_ENERGY_THRESHOLD   = 100;
+const ADAPTIVE_MULTIPLIER    = 2;
+const CALIBRATION_FRAMES     = 33;
 
 const MAX_ZCR_FOR_SPEECH     = 0.65;
 
-const SPEECH_CONFIRM_FRAMES  = 3;    
-const SILENCE_CONFIRM_FRAMES = 40;   
+const SPEECH_CONFIRM_FRAMES  = 3;
+const SILENCE_CONFIRM_FRAMES = 40;
 
 function computeRMS(frame) {
   let sum = 0;
@@ -35,7 +35,7 @@ function createSpeakerState(roomId, speakerId) {
     calibrationFrames: [],
     isCalibrated:      false,
     energyThreshold:   MIN_ENERGY_THRESHOLD,
-    state:             'CALIBRATING',   
+    state:             'CALIBRATING',
     speechConfirm:     0,
     silenceConfirm:    0,
   };
@@ -107,14 +107,14 @@ export function createVADProcessor() {
         state.energyThreshold   = Math.max(MIN_ENERGY_THRESHOLD, Math.round(avgRMS * ADAPTIVE_MULTIPLIER));
         state.isCalibrated      = true;
         state.state             = 'SILENCE';
-        state.calibrationFrames = [];   
+        state.calibrationFrames = [];
 
         log.info(
           { roomId, ambientRMS: Math.round(avgRMS), threshold: state.energyThreshold },
           'VAD calibrated'
         );
       }
-      
+
       return;
     }
 

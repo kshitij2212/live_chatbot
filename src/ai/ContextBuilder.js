@@ -32,7 +32,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
     const { roomId } = triggerEvent;
 
     const normalisedTrigger = normaliseTrigger(triggerEvent);
-    if (!normalisedTrigger) return;  
+    if (!normalisedTrigger) return;
 
     log.debug(
       { roomId, userId: normalisedTrigger.userId, source: normalisedTrigger.source },
@@ -55,9 +55,9 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
 
     const contextPayload = {
       roomId,
-      trigger:    normalisedTrigger,   
-      history,                          
-      persona,                          
+      trigger:    normalisedTrigger,
+      history,
+      persona,
       builtAt:    new Date().toISOString(),
     };
 
@@ -73,8 +73,8 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
     bus.emit(Events.CONTEXT_READY, {
       roomId,
       trigger:        normalisedTrigger,
-      promptMessages,                    
-      contextPayload,                    
+      promptMessages,
+      contextPayload,
     });
 
     log.debug(
@@ -89,7 +89,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       log.warn({ event }, 'Trigger has empty text — dropping');
       return null;
     }
-    
+
     return {
       userId:   userId ?? username ?? 'unknown',
       username: username ?? userId ?? 'unknown',
@@ -105,7 +105,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
   log.debug('ContextBuilder registered');
 
   return {
-    
+
     destroy() {
       bus.off(Events.BEHAVIOR_APPROVED, onTrigger);
       log.debug('ContextBuilder destroyed');

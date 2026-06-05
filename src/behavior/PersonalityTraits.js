@@ -18,9 +18,9 @@ export function getTraitAdjustments(persona) {
   }
 
   if (energy === 'high') {
-    typingSpeedMultiplier = 1.4;   
+    typingSpeedMultiplier = 1.4;
   } else if (energy === 'low') {
-    typingSpeedMultiplier = 0.7;   
+    typingSpeedMultiplier = 0.7;
   }
 
   return { probabilityBoost, typingSpeedMultiplier };

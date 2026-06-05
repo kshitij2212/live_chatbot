@@ -25,7 +25,7 @@ describe('ReplyPublisher', () => {
       text: 'Hello world',
     };
     bus.emit(Events.REPLY_SEND, payload);
-    
+
     await new Promise(process.nextTick);
     expect(mockLocalParticipant.sendChatMessage).toHaveBeenCalledWith('Hello world');
     expect(publisher.getStats().sent).toBe(1);

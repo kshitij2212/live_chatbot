@@ -56,7 +56,7 @@ export function createReplyPublisher(config) {
     );
 
     await participant.publishData(payload, {
-      reliable: true,            
+      reliable: true,
       topic:    dataTopic,
       kind:     DataPacketKind.RELIABLE,
     });
@@ -132,7 +132,7 @@ export function createReplyPublisher(config) {
   log.debug({ sendMode }, 'ReplyPublisher registered');
 
   return {
-    
+
     destroy() {
       bus.off(Events.REPLY_SEND, onReplySend);
       log.debug('ReplyPublisher destroyed');

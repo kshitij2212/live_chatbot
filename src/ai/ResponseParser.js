@@ -5,11 +5,11 @@ const log = logger.child({ module: 'ResponseParser' });
 const MAX_REPLY_CHARS = 300;
 
 const STRIP_PREFIXES = [
-  
+
   /^[A-Za-z0-9_ -]{1,32}:\s+/,
-  
+
   /^\*[^*]+\*\s*/,
-  
+
   /^\[[^\]]+\]\s*/,
 ];
 

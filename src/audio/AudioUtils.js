@@ -6,7 +6,7 @@ export const INT16_MIN  = -32768;
 export function stereoToMono(stereo) {
   const mono = new Int16Array(stereo.length >>> 1);
   for (let i = 0, j = 0; i < stereo.length; i += 2, j++) {
-    
+
     mono[j] = Math.round((stereo[i] + stereo[i + 1]) / 2);
   }
   return mono;
@@ -20,7 +20,7 @@ export function downmixToMono(interleaved, channels) {
     for (let c = 0; c < channels; c++) {
       sum += interleaved[i + c];
     }
-    
+
     mono[j] = Math.round(sum / channels);
   }
   return mono;
@@ -29,7 +29,7 @@ export function downmixToMono(interleaved, channels) {
 export function float32ToInt16(float32) {
   const int16 = new Int16Array(float32.length);
   for (let i = 0; i < float32.length; i++) {
-    
+
     const clamped = Math.max(-1, Math.min(1, float32[i]));
     int16[i] = clamped < 0 ? (clamped * 32768) : (clamped * 32767);
   }
@@ -39,7 +39,7 @@ export function float32ToInt16(float32) {
 export function int16ToFloat32(int16) {
   const float32 = new Float32Array(int16.length);
   for (let i = 0; i < int16.length; i++) {
-    
+
     float32[i] = int16[i] / 32768;
   }
   return float32;
@@ -58,10 +58,10 @@ export function resample(samples, fromRate, toRate) {
     const frac   = srcPos - srcIdx;
 
     if (frac === 0 || srcIdx + 1 >= samples.length) {
-      
+
       out[i] = samples[Math.min(srcIdx, samples.length - 1)];
     } else {
-      
+
       const a = samples[srcIdx];
       const b = samples[srcIdx + 1];
       out[i]  = Math.round(a + frac * (b - a));
@@ -89,19 +89,19 @@ export function encodeWAV(samples, sampleRate = 16000) {
   if (!samples || samples.length === 0) {
     const log = logger.child({ module: 'AudioUtils' });
     log.warn('encodeWAV called with empty or undefined samples — returning empty wav buffer');
-    
+
     const emptyBuffer = Buffer.alloc(44);
     emptyBuffer.write('RIFF', 0);
-    emptyBuffer.writeUInt32LE(36, 4); 
+    emptyBuffer.writeUInt32LE(36, 4);
     emptyBuffer.write('WAVE', 8);
     emptyBuffer.write('fmt ', 12);
     emptyBuffer.writeUInt32LE(16, 16);
     emptyBuffer.writeUInt16LE(1, 20);
-    emptyBuffer.writeUInt16LE(1, 22); 
+    emptyBuffer.writeUInt16LE(1, 22);
     emptyBuffer.writeUInt32LE(sampleRate, 24);
     const byteRate = sampleRate * 1 * (16 / 8);
     emptyBuffer.writeUInt32LE(byteRate, 28);
-    emptyBuffer.writeUInt16LE(2, 32); 
+    emptyBuffer.writeUInt16LE(2, 32);
     emptyBuffer.writeUInt16LE(16, 34);
     emptyBuffer.write('data', 36);
     emptyBuffer.writeUInt32LE(0, 40);
@@ -120,8 +120,8 @@ export function encodeWAV(samples, sampleRate = 16000) {
   buffer.write('WAVE', 8);
 
   buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16,            16);  
-  buffer.writeUInt16LE(1,             20);  
+  buffer.writeUInt32LE(16,            16);
+  buffer.writeUInt16LE(1,             20);
   buffer.writeUInt16LE(numChannels,   22);
   buffer.writeUInt32LE(sampleRate,    24);
   buffer.writeUInt32LE(byteRate,      28);

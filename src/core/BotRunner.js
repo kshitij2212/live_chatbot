@@ -19,6 +19,12 @@ import { createResponseParser }    from '../ai/ResponseParser.js';
 import { createModerationService } from '../moderation/ModerationService.js';
 import { createCommentFilter }     from '../comments/CommentFilter.js';
 import { createCommentListener }   from '../comments/CommentListener.js';
+import { createGroqGateCheck }     from '../ai/GroqGateCheck.js';
+import { createJoinGreetingService } from '../ai/JoinGreetingService.js';
+import { createTranscriptProcessor } from '../comments/TranscriptProcessor.js';
+import { createCommentProcessor }    from '../comments/CommentProcessor.js';
+import { createReplyProcessor }      from '../realtime/ReplyProcessor.js';
+import { createAudioPipeline }       from '../audio/AudioPipeline.js';
 import '../comments/CommentParser.js';
 
 const log = logger.child({ module: 'BotRunner' });
@@ -40,12 +46,15 @@ export function createBotRunner() {
   let llm             = null;
   let responseParser  = null;
   let moderation      = null;
-  let audioBuffer     = null;
-  let vad             = null;
-  let segmenter       = null;
-  let stt             = null;
+  let audioPipeline   = null;
   let commentFilter   = null;
   let commentListener = null;
+  let gateCheck       = null;
+  let groqAdapter     = null;
+  let joinGreeting    = null;
+  let transcriptProcessor = null;
+  let commentProcessor    = null;
+  let replyProcessor      = null;
   let isShuttingDown  = false;
 
   const roomRef = { room: null };
@@ -70,7 +79,6 @@ export function createBotRunner() {
   function wireEvents() {
 
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
-      
       if (room) roomRef.room = room;
       log.info({ roomId, roomName }, '🎙  Joined room');
       context.setMeta(roomId, {
@@ -90,83 +98,6 @@ export function createBotRunner() {
 
     on(Events.PARTICIPANT_LEFT, ({ roomId, identity }) => {
       log.info({ roomId, identity }, '👤 Participant left');
-    });
-
-    on(Events.TRANSCRIPT_READY, async ({ roomId, text, speakerId }) => {
-      if (!text?.trim() || isShuttingDown) return;
-
-      const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay)$/i;
-      if (blacklist.test(text.trim())) {
-        log.debug({ roomId, text }, 'Blacklisted transcript (likely noise) — ignoring');
-        return;
-      }
-      
-      log.debug({ roomId, speakerId, text }, '📝 Transcript received');
-      try {
-        await context.addTranscript(roomId, text, speakerId);
-        const decision = await behavior.evaluate({ roomId, type: 'transcript', text });
-        if (!decision.shouldReply) return;
-        bus.emit(Events.BEHAVIOR_APPROVED, {
-          roomId,
-          trigger:     text,
-          triggerType: 'transcript',
-          username:    speakerId,
-          userId:      speakerId,
-          delayMs:     decision.delayMs,
-        });
-      } catch (err) {
-        log.error({ err, roomId }, 'Error in transcript handler');
-      }
-    });
-
-    on(Events.COMMENT_ACCEPTED, async ({ roomId, userId, username, text }) => {
-      if (!text?.trim() || isShuttingDown) return;
-      log.debug({ roomId, username, text }, '💬 Comment accepted');
-      try {
-        await context.addComment(roomId, userId, username, text);
-        const decision = await behavior.evaluate({ roomId, type: 'comment', text });
-        if (!decision.shouldReply) return;
-        bus.emit(Events.BEHAVIOR_APPROVED, {
-          roomId,
-          trigger:     text,
-          triggerType: 'comment',
-          username,
-          delayMs:     decision.delayMs,
-        });
-      } catch (err) {
-        log.error({ err, roomId }, 'Error in comment handler');
-      }
-    });
-
-    on(Events.REPLY_READY, async ({ roomId, text, trigger, usage }) => {
-      if (isShuttingDown) {
-        log.debug({ roomId }, 'Shutdown in progress — dropping queued reply');
-        return;
-      }
-
-      const delayMs = trigger?.delayMs ?? 0;
-      if (delayMs > 0) {
-        log.debug({ roomId, delayMs }, '⌨️  Simulating typing delay');
-        await sleep(delayMs);
-      }
-
-      if (isShuttingDown) return;
-
-      try {
-        
-        const modResult = await moderation.check(text);
-        if (!modResult.safe) {
-          log.warn({ roomId, reason: modResult.reason }, 'Moderation flagged reply — dropping');
-          return;
-        }
-
-        await context.addBotReply(roomId, text);
-
-        bus.emit(Events.REPLY_SEND, { roomId, trigger, text, usage });
-
-      } catch (err) {
-        log.error({ err, roomId }, 'Error in reply handler');
-      }
     });
 
     on(Events.REPLY_SENT, ({ roomId, text }) => {
@@ -242,7 +173,7 @@ export function createBotRunner() {
     responseParser = createResponseParser({ maxReplyChars: 300 });
     log.debug('✓ ResponseParser');
 
-    const groqAdapter = createGroqAdapter({
+    groqAdapter = createGroqAdapter({
       apiKey:      config.groq.apiKey,
       model:       config.groq.model,
       maxTokens:   config.groq.maxTokens,
@@ -254,6 +185,17 @@ export function createBotRunner() {
 
     llm = createLLMService({ groqAdapter, responseParser });
     log.debug('✓ LLMService');
+
+    gateCheck = createGroqGateCheck({ groqAdapter });
+    log.debug('✓ GroqGateCheck');
+
+    joinGreeting = createJoinGreetingService({
+      groqAdapter,
+      personaMemory: persona,
+      botPersona:    config.livekit.botPersona,
+    });
+    joinGreeting.init();
+    log.debug('✓ JoinGreetingService');
 
     moderation = createModerationService({ groqKey: config.groq.apiKey });
     log.debug('✓ ModerationService');
@@ -270,38 +212,12 @@ export function createBotRunner() {
     log.debug('✓ CommentListener');
 
     const audioStage = Number(process.env.AUDIO_PIPELINE_STAGE ?? '0');
-    log.info({ audioStage }, `Audio pipeline stage: ${audioStage === 0 ? 'DISABLED' : audioStage}`);
-
-    if (audioStage >= 1) {
-      const { createAudioBuffer } = await import('../audio/AudioBuffer.js');
-      audioBuffer = createAudioBuffer();
-      audioBuffer.init();
-      log.debug('✓ AudioBuffer');
-    }
-
-    if (audioStage >= 2) {
-      const { createVADProcessor } = await import('../audio/VADProcessor.js');
-      vad = createVADProcessor();
-      vad.init();
-      log.debug('✓ VADProcessor');
-    }
-
-    if (audioStage >= 3) {
-      const { createSpeechSegmenter } = await import('../audio/SpeechSegmenter.js');
-      segmenter = createSpeechSegmenter();
-      segmenter.init();
-      log.debug('✓ SpeechSegmenter');
-    }
-
-    if (audioStage >= 4) {
-      const { createSTTService } = await import('../stt/STTService.js');
-      stt = createSTTService({
-        groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
-        sttMinRms:  config.livekit.sttMinRms,
-      });
-      await stt.init();
-      log.debug('✓ STTService');
-    }
+    audioPipeline = createAudioPipeline({
+      stage:      audioStage,
+      groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
+      sttMinRms:  config.livekit.sttMinRms,
+    });
+    await audioPipeline.init();
 
     connector = createLiveKitConnector({
       url:                 config.livekit.url,
@@ -327,6 +243,30 @@ export function createBotRunner() {
     });
     log.debug('✓ ReplyPublisher');
 
+    transcriptProcessor = createTranscriptProcessor({
+      context,
+      behavior,
+      gateCheck,
+      botIdentity:    config.livekit.botIdentity,
+      botDisplayName: config.livekit.botDisplayName,
+    });
+    transcriptProcessor.init();
+    log.debug('✓ TranscriptProcessor');
+
+    commentProcessor = createCommentProcessor({
+      context,
+      behavior,
+    });
+    commentProcessor.init();
+    log.debug('✓ CommentProcessor');
+
+    replyProcessor = createReplyProcessor({
+      context,
+      moderation,
+    });
+    replyProcessor.init();
+    log.debug('✓ ReplyProcessor');
+
     log.info('Wiring EventBus...');
     wireEvents();
     log.info('✓ EventBus wired');
@@ -350,14 +290,15 @@ export function createBotRunner() {
     unwireEvents();
 
     llm?.destroy();
+    transcriptProcessor?.destroy();
+    commentProcessor?.destroy();
+    replyProcessor?.destroy();
+    joinGreeting?.destroy();
     contextBuilder?.destroy();
     replyPublisher?.destroy();
     commentFilter?.destroy();
     commentListener?.destroy();
-    stt?.destroy();
-    segmenter?.destroy();
-    vad?.destroy();
-    audioBuffer?.destroy();
+    audioPipeline?.destroy();
 
     if (connector) {
       await connector.disconnect().catch((err) => log.warn({ err }, 'Connector disconnect error'));

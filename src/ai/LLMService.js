@@ -21,7 +21,7 @@ export function createLLMService({ groqAdapter, responseParser }) {
   }
 
   async function onContextReady({ roomId, trigger, promptMessages, contextPayload }) {
-    
+
     if (getInFlight(roomId) >= MAX_CONCURRENT_PER_ROOM) {
       log.debug(
         { roomId, userId: trigger?.userId, inFlight: getInFlight(roomId) },
@@ -43,7 +43,7 @@ export function createLLMService({ groqAdapter, responseParser }) {
       const parsed = responseParser.parse(completion, { roomId, userId: trigger?.userId });
 
       if (!parsed.shouldReply) {
-        
+
         log.debug({ roomId, userId: trigger?.userId }, 'LLM signalled silence — no reply emitted');
         return;
       }
@@ -53,7 +53,7 @@ export function createLLMService({ groqAdapter, responseParser }) {
         trigger,
         text:           parsed.text,
         usage:          parsed.usage,
-        contextPayload, 
+        contextPayload,
       });
 
       log.info(
@@ -76,7 +76,7 @@ export function createLLMService({ groqAdapter, responseParser }) {
     } else if (err instanceof GroqNetworkError) {
       log.warn(meta, 'LLM request failed — network error');
     } else if (err instanceof GroqAPIError) {
-      
+
       log.error({ ...meta, status: err.status }, 'LLM request failed — API error');
     } else {
       log.error({ ...meta, err }, 'LLM request failed — unexpected error');
@@ -94,7 +94,7 @@ export function createLLMService({ groqAdapter, responseParser }) {
   log.debug('LLMService registered');
 
   return {
-    
+
     destroy() {
       bus.off(Events.CONTEXT_READY, onContextReady);
       log.debug('LLMService destroyed');

@@ -6,7 +6,7 @@ import logger                      from '../utils/logger.js';
 const log = logger.child({ module: 'BehaviorEngine' });
 
 export class BehaviorEngine {
-  
+
   constructor(redis, {
     cooldownSeconds      = 10,
     baseReplyProbability = 0.4,
@@ -14,11 +14,11 @@ export class BehaviorEngine {
   } = {}) {
     this.cooldown            = new CooldownManager(redis, { cooldownSeconds });
     this.baseProb            = baseReplyProbability;
-    this.maxRepliesPerMinute = maxRepliesPerMinute;  
+    this.maxRepliesPerMinute = maxRepliesPerMinute;
   }
 
   async evaluate({ roomId, type, text }) {
-    
+
     const onCooldown = await this.cooldown.isOnCooldown(roomId);
     if (onCooldown) {
       log.debug({ roomId, type }, 'On cooldown — skipping');

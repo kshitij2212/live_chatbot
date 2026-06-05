@@ -6,7 +6,7 @@ import 'dotenv/config';
 async function run() {
   console.log('Connecting to URL:', process.env.LIVEKIT_URL);
   console.log('Room:', process.env.LIVEKIT_ROOM);
-  
+
   const at = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, { identity: 'status-bot' });
   at.addGrant({ roomJoin: true, room: process.env.LIVEKIT_ROOM, canSubscribe: true });
   const token = await at.toJwt();
@@ -17,7 +17,7 @@ async function run() {
   room.on(RoomEvent.Disconnected, (reason) => console.log('Event: Disconnected. Reason:', reason));
   room.on(RoomEvent.ParticipantConnected, (p) => console.log(`Event: Participant connected: ${p.identity}`));
   room.on(RoomEvent.ParticipantDisconnected, (p) => console.log(`Event: Participant disconnected: ${p.identity}`));
-  
+
   room.on(RoomEvent.TrackPublished, (pub, p) => {
     console.log(`Event: Track published by ${p.identity} - SID: ${pub.sid}, Kind: ${pub.kind}`);
   });
@@ -44,7 +44,7 @@ async function run() {
     console.log('\n--- ROOM STATUS ---');
     console.log(`Connection State: ${room.connectionState}`);
     console.log(`Active Remote Participants count: ${room.remoteParticipants.size}`);
-    
+
     for (const [sid, p] of room.remoteParticipants) {
       console.log(`Participant: ${p.identity}`);
       console.log(`  Publications count: ${p.trackPublications.size}`);

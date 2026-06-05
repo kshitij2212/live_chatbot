@@ -6,9 +6,9 @@ const HALLUCINATIONS = [
   'see you next time',
   'see you in the next video',
   'bye bye',
-  'you',                
-  'the',               
-  'i',                 
+  'you',
+  'the',
+  'i',
 ];
 
 const HALLUCINATION_RE = new RegExp(

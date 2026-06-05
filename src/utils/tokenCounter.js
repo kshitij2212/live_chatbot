@@ -8,7 +8,7 @@ export function countTokens(text) {
 export function countMessagesTokens(messages) {
   if (!Array.isArray(messages)) return 0;
   return messages.reduce((total, msg) => {
-    
+
     return total + countTokens(msg?.content ?? '') + 4;
   }, 0);
 }

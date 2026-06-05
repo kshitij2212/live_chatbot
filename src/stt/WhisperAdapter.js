@@ -17,7 +17,7 @@ export function createWhisperAdapter(config) {
   }
 
   async function transcribe(samples, sampleRate) {
-    
+
     const minSamples = Math.round(MIN_SAMPLES_16KHZ * (sampleRate / 16000));
     if (!samples || samples.length < minSamples) {
       log.warn(
@@ -30,9 +30,9 @@ export function createWhisperAdapter(config) {
     const wavBuffer = encodeWAV(samples, sampleRate);
     writeFileSync(`/tmp/utterance_${Date.now()}.wav`, wavBuffer);
     log.info('WAV saved to /tmp');
-    
+
     const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-    
+
     const formData = new FormData();
     formData.append('file', blob, 'utterance.wav');
     formData.append('model', MODEL);

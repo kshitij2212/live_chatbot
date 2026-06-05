@@ -144,6 +144,7 @@ export function createLiveKitConnector(config) {
     reconnectCount = 0;
 
     log.info({ roomId, botIdentity }, 'Successfully connected to LiveKit room');
+    eventBus.emit(Events.ROOM_CONNECTED, { roomId, roomName, room });
   }
 
   function connect() {

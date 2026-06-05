@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 const log = logger.child({ module: 'promptInjectionGuard' });
 
 const PATTERNS = [
-  
+
   {
     label:       'ignore_instructions',
     re:          /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|context)/gi,
@@ -14,19 +14,19 @@ const PATTERNS = [
     re:          /\b(your\s+new\s+instructions?|from\s+now\s+on|henceforth)\b/gi,
     replacement: '[…]',
   },
-  
+
   {
     label:       'jailbreak_persona',
     re:          /\b(you\s+are\s+now|act\s+as|pretend\s+(you\s+are|to\s+be)|roleplay\s+as|DAN|jailbreak)\b/gi,
     replacement: '[…]',
   },
-  
+
   {
     label:       'delimiters',
     re:          /(\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>|###\s*(SYSTEM|USER|ASSISTANT)|<<SYS>>|<\/SYS>>)/gi,
     replacement: '',
   },
-  
+
   {
     label:       'control_chars',
     re:          /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,
@@ -58,7 +58,7 @@ export function sanitise(text, meta = {}) {
     return result.trim();
 
   } catch (err) {
-    
+
     log.error({ ...meta, err }, 'promptInjectionGuard threw unexpectedly — returning original');
     return text;
   }

@@ -36,7 +36,7 @@ const config = {
     roomName:     env('LIVEKIT_ROOM',         'test-room'),
     botIdentity:  env('BOT_IDENTITY',         'zara-bot'),
     botDisplayName: env('BOT_DISPLAY_NAME',   'Zara'),
-    
+
     botPersona:   env('BOT_PERSONA',          'zara'),
     tokenApiUrl: env('LIVEKIT_TOKEN_API', ''),
 
@@ -51,11 +51,11 @@ const config = {
     },
     connectTimeoutMs:    envInt('LIVEKIT_CONNECT_TIMEOUT_MS', 10000),
     disconnectTimeoutMs: envInt('LIVEKIT_DISCONNECT_TIMEOUT_MS', 5000),
-    sttMinRms:           envInt('STT_MIN_RMS', 200),
+    sttMinRms:           envInt('STT_MIN_RMS', 370),
   },
 
   groq: {
-    apiKey:      env('GROQ_API_KEY', ''),            
+    apiKey:      env('GROQ_API_KEY', ''),
     model:       env('GROQ_MODEL',    'llama-3.3-70b-versatile'),
     maxTokens:   envInt('GROQ_MAX_TOKENS',   256),
     temperature: envFloat('GROQ_TEMPERATURE', 0.85),
@@ -66,29 +66,29 @@ const config = {
 
   redis: {
     url:         env('REDIS_URL', 'redis://localhost:6379'),
-    
+
     contextTtlSeconds: envInt('REDIS_CONTEXT_TTL_SECONDS', 7200),
   },
 
   context: {
-    
+
     windowSize: envInt('CONTEXT_WINDOW_SIZE', 20),
   },
 
   prompt: {
-    
+
     historyTokenBudget: envInt('PROMPT_HISTORY_TOKEN_BUDGET', 1500),
   },
 
   behavior: {
-    
+
     perUserCooldownMs:  envInt('REPLY_COOLDOWN_MS',        30000),
-    
+
     globalCooldownMs:   envInt('GLOBAL_RATE_LIMIT_MS',     8000),
-    
+
     typingDelayMinMs:   envInt('TYPING_DELAY_MIN_MS',      1500),
     typingDelayMaxMs:   envInt('TYPING_DELAY_MAX_MS',      4000),
-    
+
     replyProbability:   envFloat('REPLY_PROBABILITY',      0.85),
 
     botNameAliases:     env('BOT_NAME_ALIASES', '').split(',').map(s => s.trim()).filter(Boolean),

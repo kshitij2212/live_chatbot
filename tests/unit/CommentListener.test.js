@@ -14,11 +14,11 @@ describe('CommentListener', () => {
     });
 
     await new Promise(resolve => setTimeout(resolve, 10));
-    
+
     const stats = listener.getStats();
     expect(stats.received).toBe(1);
     expect(stats.forwarded).toBe(1);
-    
+
     listener.destroy();
   });
 });

@@ -4,20 +4,20 @@ import logger          from '../utils/logger.js';
 const log = logger.child({ module: 'CommentFilter' });
 
 const DEFAULTS = {
-  
-  minLength:            3,     
-  maxLength:            500,   
 
-  rateLimitWindowMs:    10_000, 
-  rateLimitMaxMessages: 5,      
+  minLength:            3,
+  maxLength:            500,
+
+  rateLimitWindowMs:    10_000,
+  rateLimitMaxMessages: 5,
 
   replyProbability:     1.0,
 
-  blockedUserIds:       [],    
-  triggerKeywords:      [      
+  blockedUserIds:       [],
+  triggerKeywords:      [
     '?',
   ],
-  blocklistPhrases:     [],    
+  blocklistPhrases:     [],
 };
 
 const EMOJI_ONLY_RE = /^[\p{Emoji}\p{P}\s]+$/u;
@@ -51,7 +51,7 @@ export function createCommentFilter(config = {}) {
     const lowerText = text.toLowerCase();
 
     for (const kw of cfg.triggerKeywords) {
-      if (text.includes(kw)) return null;  
+      if (text.includes(kw)) return null;
     }
 
     if (blockedSet.has(String(userId).toLowerCase())) {
@@ -88,7 +88,7 @@ export function createCommentFilter(config = {}) {
       return 'probability_skip';
     }
 
-    return null;  
+    return null;
   }
 
   function onCommentReceived(comment) {
@@ -119,7 +119,7 @@ export function createCommentFilter(config = {}) {
   log.debug('CommentFilter registered');
 
   return {
-    
+
     destroy() {
       bus.off(Events.COMMENT_RECEIVED, onCommentReceived);
       rateLimitMap.clear();

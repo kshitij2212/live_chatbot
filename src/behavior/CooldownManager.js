@@ -5,7 +5,7 @@ const log = logger.child({ module: 'CooldownManager' });
 const KEY_PREFIX = 'bot:cooldown:';
 
 export class CooldownManager {
-  
+
   constructor(redis, { cooldownSeconds = 10 } = {}) {
     if (!redis) throw new Error('CooldownManager: redis client is required');
     this.redis = redis;

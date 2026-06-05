@@ -4,7 +4,7 @@ import { retry } from '../utils/retry.js';
 const log = logger.child({ module: 'GroqAdapter' });
 
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_TIMEOUT_MS = 15_000;  
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
@@ -22,13 +22,13 @@ export function createGroqAdapter(config) {
   if (!apiKey?.trim()) throw new Error('GroqAdapter: apiKey is required');
   if (!model?.trim())  throw new Error('GroqAdapter: model is required');
 
-  async function _sendRequest(messages) {
+  async function _sendRequest(messages, options = {}) {
     const body = JSON.stringify({
       model,
       messages,
-      max_tokens:  maxTokens,
-      temperature,
-      stream:      false,      
+      max_tokens:  options.maxTokens ?? maxTokens,
+      temperature: options.temperature ?? temperature,
+      stream:      false,
     });
 
     const controller = new AbortController();
@@ -46,7 +46,7 @@ export function createGroqAdapter(config) {
         signal: controller.signal,
       });
     } catch (err) {
-      
+
       if (err.name === 'AbortError') {
         throw new GroqTimeoutError(`Groq request timed out after ${timeoutMs}ms`);
       }
@@ -63,7 +63,7 @@ export function createGroqAdapter(config) {
       const message = `Groq API error ${status}: ${errorBody.slice(0, 200)}`;
 
       if (RETRYABLE_STATUS.has(status)) {
-        
+
         const retryable = new GroqRetryableError(message);
         retryable.status = status;
         throw retryable;
@@ -84,19 +84,19 @@ export function createGroqAdapter(config) {
     return json;
   }
 
-  async function complete(messages) {
+  async function complete(messages, options = {}) {
     if (!Array.isArray(messages) || messages.length === 0) {
       throw new Error('GroqAdapter.complete: messages must be a non-empty array');
     }
 
-    log.debug({ model, messageCount: messages.length }, 'Sending completion request');
+    log.debug({ model, messageCount: messages.length, options }, 'Sending completion request');
 
     const completion = await retry(
-      () => _sendRequest(messages),
+      () => _sendRequest(messages, options),
       {
         maxAttempts:   maxRetries,
         baseDelayMs:   retryBaseMs,
-        
+
         shouldRetry:   (err) => err instanceof GroqRetryableError,
         onRetry:       (err, attempt) => {
           log.warn(

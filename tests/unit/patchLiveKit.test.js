@@ -14,7 +14,7 @@ describe('LiveKit Patcher', () => {
       const content = fs.readFileSync(filePath, 'utf8');
       expect(content).not.toContain('new Int16Array(data.buffer),');
       expect(content).not.toContain('new Uint8Array(this.data.buffer),');
-      expect(content).toContain('new Int16Array(new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2))');
+      expect(content).toContain('Int16Array.from(new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2))');
       expect(content).toContain('new Uint8Array(this.data.buffer, this.data.byteOffset, this.data.byteLength)');
     }
   });
@@ -24,7 +24,7 @@ describe('LiveKit Patcher', () => {
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf8');
       expect(content).not.toContain('new Int16Array(outputData.buffer),');
-      expect(content).toContain('new Int16Array(new Int16Array(outputData.buffer, outputData.byteOffset, outputData.byteLength / 2))');
+      expect(content).toContain('Int16Array.from(new Int16Array(outputData.buffer, outputData.byteOffset, outputData.byteLength / 2))');
     }
   });
 

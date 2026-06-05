@@ -9,10 +9,10 @@ export async function createRedisClient(url) {
   }
 
   const client = new Redis(url, {
-    
+
     maxRetriesPerRequest: 3,
     enableReadyCheck:     true,
-    lazyConnect:          true,   
+    lazyConnect:          true,
   });
 
   client.on('error',       (err) => log.error({ err },    'Redis error'));

@@ -15,13 +15,13 @@ function computeRMS(samples) {
 }
 
 export function createSTTService(config) {
-  const { groqApiKey, sttMinRms = 200 } = config;
+  const { groqApiKey, sttMinRms = 370 } = config;
 
   const whisper = createWhisperAdapter({ apiKey: groqApiKey });
 
   async function onUtteranceReady({ roomId, speakerId, samples, sampleRate, durationMs }) {
     const ts = Date.now();
-    
+
     log.info({ roomId, speakerId, durationMs: Math.round(durationMs) }, 'STT: onUtteranceReady fired');
 
     const rms = computeRMS(samples);

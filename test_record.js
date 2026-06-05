@@ -21,7 +21,7 @@ async function run() {
     const { AudioStream } = await import('@livekit/rtc-node');
     const stream = new AudioStream(track, { sampleRate: 16000, numChannels: 1, frameSizeMs: 30 });
     const reader = stream.getReader();
-    
+
     const chunks = [];
     let totalSamples = 0;
     console.log('Recording 3 seconds of audio (100 frames)... Speak now!');
@@ -48,7 +48,7 @@ async function run() {
     writeFileSync(filename, wavBuffer);
     console.log(`Saved direct recording to: ${filename}`);
     console.log('Please listen to this file and let me know if it is clear.');
-    
+
     await room.disconnect();
     process.exit(0);
   }
