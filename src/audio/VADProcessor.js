@@ -4,12 +4,12 @@ import logger          from '../utils/logger.js';
 const log = logger.child({ module: 'VADProcessor' });
 
 const MIN_ENERGY_THRESHOLD   = 100;   
-const ADAPTIVE_MULTIPLIER    = 4;     
+const ADAPTIVE_MULTIPLIER    = 2;     
 const CALIBRATION_FRAMES     = 33;    
 
-const MAX_ZCR_FOR_SPEECH     = 0.40;
+const MAX_ZCR_FOR_SPEECH     = 0.65;
 
-const SPEECH_CONFIRM_FRAMES  = 6;    
+const SPEECH_CONFIRM_FRAMES  = 3;    
 const SILENCE_CONFIRM_FRAMES = 40;   
 
 function computeRMS(frame) {

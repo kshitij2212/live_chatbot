@@ -1,12 +1,13 @@
 import { encodeWAV }    from '../audio/AudioUtils.js';
 import logger           from '../utils/logger.js';
+import { writeFileSync } from 'fs';
 
 const log = logger.child({ module: 'WhisperAdapter' });
 
 const MIN_SAMPLES_16KHZ = 160;
 
 const MODEL = 'whisper-large-v3-turbo';
-const GROQ_AUDIO_URL = 'https:
+const GROQ_AUDIO_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 export function createWhisperAdapter(config) {
   const { apiKey } = config;
@@ -27,6 +28,8 @@ export function createWhisperAdapter(config) {
     }
 
     const wavBuffer = encodeWAV(samples, sampleRate);
+    writeFileSync(`/tmp/utterance_${Date.now()}.wav`, wavBuffer);
+    log.info('WAV saved to /tmp');
     
     const blob = new Blob([wavBuffer], { type: 'audio/wav' });
     

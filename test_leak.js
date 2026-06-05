@@ -1,3 +1,4 @@
+import './src/utils/patchLiveKit.js';
 import { Room } from '@livekit/rtc-node';
 import { AccessToken } from 'livekit-server-sdk';
 import 'dotenv/config';

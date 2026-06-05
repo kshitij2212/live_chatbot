@@ -30,9 +30,9 @@ function envFloat(key, fallback) {
 const config = {
 
   livekit: {
-    url:          env('LIVEKIT_URL',          'wss://livestreaming-wfekhupp.livekit.cloud'),
-    apiKey:       env('LIVEKIT_API_KEY',      'devkey'),
-    apiSecret:    env('LIVEKIT_API_SECRET',   'devsecret'),
+    url:          env('LIVEKIT_URL',          'wss://roxstar-ai-6dxds0sd.livekit.cloud'),
+    apiKey:       env('LIVEKIT_API_KEY',      'APIvKKqfdsLFxp7'),
+    apiSecret:    env('LIVEKIT_API_SECRET',   'kVx38cWUQcg7U5Qcwtj4fzlofefJyGeaBodUPKirTZ7G'),
     roomName:     env('LIVEKIT_ROOM',         'test-room'),
     botIdentity:  env('BOT_IDENTITY',         'zara-bot'),
     botDisplayName: env('BOT_DISPLAY_NAME',   'Zara'),

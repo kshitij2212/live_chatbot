@@ -9,10 +9,11 @@
   "scripts": {
     "start": "node --max-old-space-size=4096 --expose-gc src/core/BotRunner.js",
     "dev": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js",
-    "test": "node --experimental-vm-modules ./node_modules/.bin/jest"
+    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "postinstall": "node src/utils/patchLiveKit.js"
   },
   "dependencies": {
-    "@livekit/rtc-node": "^0.13.0",
+    "@livekit/rtc-node": "^0.13.29",
     "dotenv": "^17.4.2",
     "groq-sdk": "^1.2.1",
     "ioredis": "^5.11.0",

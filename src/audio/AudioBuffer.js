@@ -93,6 +93,9 @@ export function createAudioBuffer() {
     stats.framesReceived++;
 
     const { roomId, speakerId, data, ts } = frame;
+    if (stats.framesReceived === 1) {
+      log.info({ sampleRate: frame.sampleRate, channels: frame.channels, dataLen: frame.data?.length }, 'First audio frame received');
+    }
 
     if (!data || data.length === 0) return;
 
@@ -118,22 +121,16 @@ export function createAudioBuffer() {
       );
     }
 
-    state.ring.write(data);
+    stats.chunksEmitted++;
 
-    let chunk;
-    while ((chunk = state.ring.readChunk()) !== null) {
-      stats.chunksEmitted++;
-
-      bus.emit(Events.SPEECH_CHUNK, {
-        roomId,
-        speakerId:   state.speakerId,
-        chunk,                       
-        sampleRate:  SAMPLE_RATE,
-        chunkSizeMs: CHUNK_SIZE_MS,
-        ts,
-      });
-    }
-  }
+    bus.emit(Events.SPEECH_CHUNK, {
+      roomId,
+      speakerId:   state.speakerId,
+      chunk:       data,
+      sampleRate:  SAMPLE_RATE,
+      chunkSizeMs: CHUNK_SIZE_MS,
+      ts,
+    });}
 
   function clearSpeaker(roomId, speakerId) {
     const key = getSpeakerKey(roomId, speakerId);

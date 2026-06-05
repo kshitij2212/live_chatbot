@@ -63,7 +63,7 @@ export function createRoomEventEmitter(room, config) {
           roomId,
           speakerId,
           trackSid,
-          data:              frame.data,           
+          data:              new Int16Array(frame.data),  // MUST copy — SDK reuses the buffer
           sampleRate:        frame.sampleRate,     
           channels:          frame.channels,       
           samplesPerChannel: frame.samplesPerChannel,

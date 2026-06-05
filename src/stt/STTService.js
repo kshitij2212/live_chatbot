@@ -23,6 +23,7 @@ export function createSTTService(config) {
     let raw;
     try {
       raw = await whisper.transcribe(samples, sampleRate);
+      log.info({ roomId, speakerId, raw }, '🎙️ RAW WHISPER OUTPUT');
     } catch (err) {
       log.error({ roomId, speakerId, err }, 'STT: Groq API error');
       bus.emit(Events.STT_FAILED, {
@@ -35,6 +36,7 @@ export function createSTTService(config) {
     }
 
     const text = normalizeTranscript(raw);
+    log.info({ roomId, speakerId, rawInput: raw, normalizedOutput: text }, '🔍 RAW vs NORMALIZED');
 
     if (!text) {
       log.debug({ roomId, speakerId, raw }, 'STT: transcript empty after normalization');

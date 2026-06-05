@@ -1,3 +1,4 @@
+import '../utils/patchLiveKit.js';
 import 'dotenv/config';
 
 import bus, { Events }           from './EventBus.js';

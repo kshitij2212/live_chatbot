@@ -1,3 +1,4 @@
+import './src/utils/patchLiveKit.js';
 import { createSTTService } from './src/stt/STTService.js';
 import bus, { Events } from './src/core/EventBus.js';
 import { config } from 'dotenv';
