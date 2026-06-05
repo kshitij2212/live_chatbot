@@ -20,7 +20,7 @@ function patchFile(relativePath, replacements) {
 
   for (const { pattern, replacement, description } of replacements) {
     if (content.includes(replacement)) {
-      // Already contains the correct replacement — skip
+      
       continue;
     }
     if (content.includes(pattern)) {
@@ -39,11 +39,7 @@ function patchFile(relativePath, replacements) {
 }
 
 try {
-  // ────────────────────────────────────────────────
-  // 1. audio_frame.js
-  //    - fromOwnedInfo():  new Int16Array(data.buffer)  →  Int16Array.from(new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2))
-  //    - protoInfo():      new Uint8Array(this.data.buffer) → new Uint8Array(this.data.buffer, this.data.byteOffset, this.data.byteLength)
-  // ────────────────────────────────────────────────
+
   patchFile('@livekit/rtc-node/dist/audio_frame.js', [
     {
       pattern:     'new Int16Array(data.buffer)',
@@ -57,10 +53,6 @@ try {
     },
   ]);
 
-  // ────────────────────────────────────────────────
-  // 2. audio_resampler.js
-  //    - push()/flush(): new Int16Array(outputData.buffer) → Int16Array.from(...)
-  // ────────────────────────────────────────────────
   patchFile('@livekit/rtc-node/dist/audio_resampler.js', [
     {
       pattern:     'new Int16Array(outputData.buffer)',
@@ -69,10 +61,6 @@ try {
     },
   ]);
 
-  // ────────────────────────────────────────────────
-  // 3. video_frame.js
-  //    - dataPtr getter: new Uint8Array(this.data.buffer) → fix offset/length
-  // ────────────────────────────────────────────────
   patchFile('@livekit/rtc-node/dist/video_frame.js', [
     {
       pattern:     'new Uint8Array(this.data.buffer)',

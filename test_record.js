@@ -29,15 +29,13 @@ async function run() {
     for (let i = 0; i < 100; i++) {
       const { value: frame, done } = await reader.read();
       if (done) break;
-      
-      // Push a copy of the data
+
       chunks.push(new Int16Array(frame.data));
       totalSamples += frame.data.length;
     }
 
     console.log(`Finished recording. Total samples: ${totalSamples}`);
-    
-    // Concatenate all chunks
+
     const samples = new Int16Array(totalSamples);
     let offset = 0;
     for (const chunk of chunks) {
@@ -55,14 +53,12 @@ async function run() {
     process.exit(0);
   }
 
-  // Handle new track subscriptions
   room.on('trackSubscribed', async (track, pub, participant) => {
     if (track.kind === TrackKind.KIND_AUDIO) {
       await handleAudioTrack(track, participant);
     }
   });
 
-  // Check for pre-existing audio tracks
   for (const [, participant] of room.remoteParticipants) {
     for (const [, publication] of participant.trackPublications) {
       if (publication.track && publication.track.kind === TrackKind.KIND_AUDIO) {

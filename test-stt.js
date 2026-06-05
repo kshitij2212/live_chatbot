@@ -11,7 +11,7 @@ console.log("Emitting UTTERANCE_READY...");
 bus.emit(Events.UTTERANCE_READY, {
   roomId: 'test',
   speakerId: 'user1',
-  samples: new Int16Array(16000), // 1 second of silence
+  samples: new Int16Array(16000), 
   sampleRate: 16000,
   durationMs: 1000
 });
