@@ -49,6 +49,9 @@ const config = {
       baseMs:     envInt('LIVEKIT_RECONNECT_BASE_MS',  1500),
       maxMs:      envInt('LIVEKIT_RECONNECT_MAX_MS',   30000),
     },
+    connectTimeoutMs:    envInt('LIVEKIT_CONNECT_TIMEOUT_MS', 10000),
+    disconnectTimeoutMs: envInt('LIVEKIT_DISCONNECT_TIMEOUT_MS', 5000),
+    sttMinRms:           envInt('STT_MIN_RMS', 200),
   },
 
   groq: {

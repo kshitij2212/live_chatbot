@@ -297,20 +297,25 @@ export function createBotRunner() {
       const { createSTTService } = await import('../stt/STTService.js');
       stt = createSTTService({
         groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
+        sttMinRms:  config.livekit.sttMinRms,
       });
       await stt.init();
       log.debug('✓ STTService');
     }
 
     connector = createLiveKitConnector({
-      url:            config.livekit.url,
-      apiKey:         config.livekit.apiKey,
-      apiSecret:      config.livekit.apiSecret,
-      tokenApiUrl:    config.livekit.tokenApiUrl,
-      roomName:       config.livekit.roomName,
-      botIdentity:    config.livekit.botIdentity,
-      botDisplayName: config.livekit.botDisplayName,
-      reconnect:      config.livekit.reconnect,
+      url:                 config.livekit.url,
+      apiKey:              config.livekit.apiKey,
+      apiSecret:           config.livekit.apiSecret,
+      tokenApiUrl:         config.livekit.tokenApiUrl,
+      roomName:            config.livekit.roomName,
+      botIdentity:         config.livekit.botIdentity,
+      botDisplayName:      config.livekit.botDisplayName,
+      reconnectAttempts:   config.livekit.reconnect.attempts,
+      reconnectBaseMs:     config.livekit.reconnect.baseMs,
+      reconnectMaxMs:      config.livekit.reconnect.maxMs,
+      connectTimeoutMs:    config.livekit.connectTimeoutMs,
+      disconnectTimeoutMs: config.livekit.disconnectTimeoutMs,
     });
     log.debug('✓ LiveKitConnector');
 

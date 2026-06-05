@@ -12,12 +12,6 @@ import { sleep }                  from '../utils/sleep.js';
 
 const log = logger.child({ module: 'LiveKitConnector' });
 
-const DEFAULT_RECONNECT_ATTEMPTS = 5;
-const DEFAULT_RECONNECT_BASE_MS  = 1_500;
-const DEFAULT_RECONNECT_MAX_MS   = 30_000;
-const DISCONNECT_TIMEOUT_MS      = 5_000;
-const CONNECT_TIMEOUT_MS         = 10_000;
-
 const TERMINAL_REASONS = new Set([
   String(DisconnectReason.CLIENT_INITIATED),
   'CLIENT_INITIATED',
@@ -32,12 +26,14 @@ export function createLiveKitConnector(config) {
     tokenApiUrl,
     roomName,
     botIdentity,
-    botDisplayName    = botIdentity,
-    ownerIdentity     = null,
-    eventBus          = defaultBus,
-    reconnectAttempts = DEFAULT_RECONNECT_ATTEMPTS,
-    reconnectBaseMs   = DEFAULT_RECONNECT_BASE_MS,
-    reconnectMaxMs    = DEFAULT_RECONNECT_MAX_MS,
+    botDisplayName      = botIdentity,
+    ownerIdentity       = null,
+    eventBus            = defaultBus,
+    reconnectAttempts   = 5,
+    reconnectBaseMs     = 1500,
+    reconnectMaxMs      = 30000,
+    connectTimeoutMs    = 10000,
+    disconnectTimeoutMs = 5000,
   } = config;
 
   for (const [key, val] of Object.entries({ url, roomName, botIdentity })) {
@@ -133,7 +129,7 @@ export function createLiveKitConnector(config) {
 
     const connectResult = await Promise.race([
       room.connect(url, token, { publishVideo: false }).then(() => 'connected'),
-      sleep(CONNECT_TIMEOUT_MS).then(() => 'timeout'),
+      sleep(connectTimeoutMs).then(() => 'timeout'),
     ]);
 
     if (connectResult === 'timeout') {
@@ -141,7 +137,7 @@ export function createLiveKitConnector(config) {
       _resetRoomState();
       transitionTo(ConnectorState.DISCONNECTED);
       _safeDisconnectRoom(timedOutRoom);
-      throw new Error(`LiveKitConnector: connect timed out after ${CONNECT_TIMEOUT_MS}ms`);
+      throw new Error(`LiveKitConnector: connect timed out after ${connectTimeoutMs}ms`);
     }
 
     transitionTo(ConnectorState.CONNECTED);
@@ -200,12 +196,12 @@ export function createLiveKitConnector(config) {
     try {
       const result = await Promise.race([
         roomRef.disconnect().then(() => 'clean'),
-        sleep(DISCONNECT_TIMEOUT_MS).then(() => 'timeout'),
+        sleep(disconnectTimeoutMs).then(() => 'timeout'),
       ]);
 
       if (result === 'timeout') {
         log.warn(
-          { roomId, timeoutMs: DISCONNECT_TIMEOUT_MS },
+          { roomId, timeoutMs: disconnectTimeoutMs },
           'room.disconnect() timed out — forcing cleanup.'
         );
       } else {

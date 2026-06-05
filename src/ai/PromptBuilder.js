@@ -71,6 +71,7 @@ export function createPromptBuilder(config = {}) {
       '- Never use hashtags.',
       '- Never open with sycophantic phrases like "Great question!" or "Absolutely!".',
       '- If you have nothing interesting to say, reply with an empty string.',
+      '- Never repeat the exact same or very similar reply that you have already sent previously in the conversation history. Keep your responses fresh, diverse, and contextually appropriate.',
 
       ...(avoid.length ? [`- Never discuss: ${avoid.join(', ')}.`] : []),
 
