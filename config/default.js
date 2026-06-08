@@ -29,6 +29,18 @@ function envFloat(key, fallback) {
 
 const config = {
 
+  realtime: {
+    provider:     env('REALTIME_PROVIDER',    'livekit'),
+  },
+
+  socket: {
+    url:            env('SOCKET_URL',            'wss://api.dev.roxstarstudioz.com'),
+    path:           env('SOCKET_PATH',           '/v1/live/socket'),
+    liveId:         envInt('SOCKET_LIVE_ID',     15314),
+    userId:         envInt('SOCKET_USER_ID',     12641),
+    broadcasterId:  envInt('SOCKET_BROADCASTER_ID', 12641),
+  },
+
   livekit: {
     url:          env('LIVEKIT_URL',          'wss://roxstar-ai-6dxds0sd.livekit.cloud'),
     apiKey:       env('LIVEKIT_API_KEY',      'APIvKKqfdsLFxp7'),
