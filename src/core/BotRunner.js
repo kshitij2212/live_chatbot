@@ -6,6 +6,7 @@ import logger                    from '../utils/logger.js';
 import config                    from '../../config/default.js';
 
 import { createLiveKitConnector }  from '../realtime/LiveKitConnector.js';
+import { createSocketIOConnector }   from '../realtime/SocketIOConnector.js';
 import { createReplyPublisher }    from '../realtime/ReplyPublisher.js';
 import { createRedisClient }       from '../memory/RedisClient.js';
 import { createContextMemory }     from '../memory/ContextMemoryService.js';
@@ -35,7 +36,8 @@ function sleep(ms) {
 
 export function createBotRunner() {
 
-  let connector       = null;
+  let livekitConnector = null;
+  let socketIOConnector = null;
   let replyPublisher  = null;
   let redis           = null;
   let context         = null;
@@ -58,6 +60,7 @@ export function createBotRunner() {
   let isShuttingDown  = false;
 
   const roomRef = { room: null };
+  const connectorRef = { connector: null };
 
   const listeners = [];
 
@@ -162,11 +165,14 @@ export function createBotRunner() {
     });
     log.debug('✓ PromptBuilder');
 
+    const useLiveKit = config.realtime.provider === 'livekit' || config.realtime.provider === 'both';
+    const useSocketIO = config.realtime.provider === 'socketio' || config.realtime.provider === 'both';
+
     contextBuilder = createContextBuilder({
       contextMemory: context,
       personaMemory: persona,
       promptBuilder,
-      botId:         config.livekit.botPersona,
+      botId:         useLiveKit ? config.livekit.botPersona : (config.livekit.botPersona || 'zara-bot'),
     });
     log.debug('✓ ContextBuilder');
 
@@ -192,7 +198,7 @@ export function createBotRunner() {
     joinGreeting = createJoinGreetingService({
       groqAdapter,
       personaMemory: persona,
-      botPersona:    config.livekit.botPersona,
+      botPersona:    useLiveKit ? config.livekit.botPersona : (config.livekit.botPersona || 'zara-bot'),
     });
     joinGreeting.init();
     log.debug('✓ JoinGreetingService');
@@ -211,47 +217,67 @@ export function createBotRunner() {
     commentListener = createCommentListener();
     log.debug('✓ CommentListener');
 
-    const audioStage = Number(process.env.AUDIO_PIPELINE_STAGE ?? '0');
-    audioPipeline = createAudioPipeline({
-      stage:      audioStage,
-      groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
-      sttMinRms:  config.livekit.sttMinRms,
-    });
-    await audioPipeline.init();
+    if (useLiveKit) {
+      const audioStage = Number(process.env.AUDIO_PIPELINE_STAGE ?? '0');
+      audioPipeline = createAudioPipeline({
+        stage:      audioStage,
+        groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
+        sttMinRms:  config.livekit.sttMinRms,
+      });
+      await audioPipeline.init();
+    }
 
-    connector = createLiveKitConnector({
-      url:                 config.livekit.url,
-      apiKey:              config.livekit.apiKey,
-      apiSecret:           config.livekit.apiSecret,
-      tokenApiUrl:         config.livekit.tokenApiUrl,
-      roomName:            config.livekit.roomName,
-      botIdentity:         config.livekit.botIdentity,
-      botDisplayName:      config.livekit.botDisplayName,
-      reconnectAttempts:   config.livekit.reconnect.attempts,
-      reconnectBaseMs:     config.livekit.reconnect.baseMs,
-      reconnectMaxMs:      config.livekit.reconnect.maxMs,
-      connectTimeoutMs:    config.livekit.connectTimeoutMs,
-      disconnectTimeoutMs: config.livekit.disconnectTimeoutMs,
-    });
-    log.debug('✓ LiveKitConnector');
+    if (useLiveKit) {
+      livekitConnector = createLiveKitConnector({
+        url:                 config.livekit.url,
+        apiKey:              config.livekit.apiKey,
+        apiSecret:           config.livekit.apiSecret,
+        tokenApiUrl:         config.livekit.tokenApiUrl,
+        roomName:            config.livekit.roomName,
+        botIdentity:         config.livekit.botIdentity,
+        botDisplayName:      config.livekit.botDisplayName,
+        reconnectAttempts:   config.livekit.reconnect.attempts,
+        reconnectBaseMs:     config.livekit.reconnect.baseMs,
+        reconnectMaxMs:      config.livekit.reconnect.maxMs,
+        connectTimeoutMs:    config.livekit.connectTimeoutMs,
+        disconnectTimeoutMs: config.livekit.disconnectTimeoutMs,
+      });
+      log.debug('✓ LiveKitConnector');
+    }
+
+    if (useSocketIO) {
+      socketIOConnector = createSocketIOConnector({
+        url:                  config.socket.url,
+        path:                 config.socket.path,
+        reconnectionAttempts: config.socket.reconnectionAttempts,
+        timeout:              config.socket.timeout,
+        liveId:               config.socket.liveId,
+        userId:               config.socket.userId,
+        broadcasterId:        config.socket.broadcasterId,
+      });
+      log.debug('✓ SocketIOConnector');
+    }
 
     replyPublisher = createReplyPublisher({
       roomRef,
-      botIdentity:    config.livekit.botIdentity,
-      botDisplayName: config.livekit.botDisplayName,
-      sendMode:       'chat',
+      connectorRef,
+      botIdentity:    useSocketIO ? String(config.socket.userId) : config.livekit.botIdentity,
+      botDisplayName: useSocketIO ? String(config.socket.userId) : config.livekit.botDisplayName,
+      sendMode:       useSocketIO ? 'socket_io' : 'chat',
     });
     log.debug('✓ ReplyPublisher');
 
-    transcriptProcessor = createTranscriptProcessor({
-      context,
-      behavior,
-      gateCheck,
-      botIdentity:    config.livekit.botIdentity,
-      botDisplayName: config.livekit.botDisplayName,
-    });
-    transcriptProcessor.init();
-    log.debug('✓ TranscriptProcessor');
+    if (useLiveKit) {
+      transcriptProcessor = createTranscriptProcessor({
+        context,
+        behavior,
+        gateCheck,
+        botIdentity:    config.livekit.botIdentity,
+        botDisplayName: config.livekit.botDisplayName,
+      });
+      transcriptProcessor.init();
+      log.debug('✓ TranscriptProcessor');
+    }
 
     commentProcessor = createCommentProcessor({
       context,
@@ -271,10 +297,16 @@ export function createBotRunner() {
     wireEvents();
     log.info('✓ EventBus wired');
 
-    log.info({ room: config.livekit.roomName }, 'Connecting to LiveKit room...');
-    await connector.connect();
-
-    if (connector.getRoom) roomRef.room = connector.getRoom();
+    if (useLiveKit) {
+      log.info({ room: config.livekit.roomName }, 'Connecting to LiveKit room...');
+      await livekitConnector.connect();
+      if (livekitConnector.getRoom) roomRef.room = livekitConnector.getRoom();
+    }
+    if (useSocketIO) {
+      log.info({ url: config.socket.url }, 'Connecting to Socket.io server...');
+      connectorRef.connector = socketIOConnector;
+      await socketIOConnector.connect();
+    }
 
     log.info('═══════════════════════════════════════════');
     log.info('  Bot is live. Listening...');
@@ -300,8 +332,11 @@ export function createBotRunner() {
     commentListener?.destroy();
     audioPipeline?.destroy();
 
-    if (connector) {
-      await connector.disconnect().catch((err) => log.warn({ err }, 'Connector disconnect error'));
+    if (livekitConnector) {
+      await livekitConnector.disconnect().catch((err) => log.warn({ err }, 'LiveKitConnector disconnect error'));
+    }
+    if (socketIOConnector) {
+      await socketIOConnector.disconnect().catch((err) => log.warn({ err }, 'SocketIOConnector disconnect error'));
     }
 
     if (redis?.quit) {

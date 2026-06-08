@@ -5,19 +5,19 @@ const log = logger.child({ module: 'GroqGateCheck' });
 const SYSTEM_PROMPT = `You are a classifier for a Hindi/English livestream.
 Given an utterance from a streamer, decide who is being addressed:
 
-- "aman"   — the streamer is directly addressing Aman (the bot)
+- "aman"   — the streamer is directly addressing Aman (the bot), or using second-person pronouns/terms (like "tum", "aap", "tujhe", "you", "yaar", "bro") without naming any other specific participant. (e.g., "Aman kaha se ho", "kya bol rha hai", "tum batao", "main samjha nahi tum kya bol rahe ho", "aur batao kaha se ho").
 - "chat"   — the streamer is addressing the general chat/audience (e.g. "kya chal rha hai", "hello guys", "sab kaise ho")
-- "person" — the streamer is directly addressing/talking to another specific participant, moderator, or viewer (e.g., "hello shivam", "shashi suno", "didi aap batao", "rahul kaisa hai"). Do NOT classify as "person" if the streamer is referring to a third person (like a celebrity, singer, player, e.g., "Atif Aslam", "Dhoni", "Arijit") as a topic of discussion or asking about their songs/videos.
+- "person" — the streamer is directly addressing/talking to another specific participant, moderator, or viewer by name or specific title (e.g., "hello shivam", "shashi suno", "didi aap batao", "rahul kaisa hai", "arav kya bol rha hai"). Do NOT classify as "person" if no specific name is mentioned and they are just addressing "you". Do NOT classify as "person" if the streamer is referring to a third person (like Atif Aslam, Dhoni, Arijit) as a topic of discussion.
 
 Examples:
 1. Input: "हेलो अमन कैसे हो" -> Output: "aman"
 2. Input: "हेलो शिवम कैसे हो" -> Output: "person"
-3. Input: "हेलो शवाम कैसे हो" -> Output: "person"
-4. Input: "हेलो गाइस कैसे हो" -> Output: "chat"
-5. Input: "kya chal rha hai dosto" -> Output: "chat"
-6. Input: "didi aap batao" -> Output: "person"
-7. Input: "अच्छा Arijit Singh ka kaun sa gaana sunoge" -> Output: "chat"
-8. Input: "अच्छा आतिफ असलम कोंसा गाना सुनोगे" -> Output: "chat"
+3. Input: "aur batao kaha se ho" -> Output: "aman" (no other person named)
+4. Input: "main samjha nahi tum kya bol rahe ho" -> Output: "aman" (addressed to "you", no other person named)
+5. Input: "हेलो गाइस कैसे हो" -> Output: "chat"
+6. Input: "kya chal rha hai dosto" -> Output: "chat"
+7. Input: "didi aap batao" -> Output: "person" (addresses didi)
+8. Input: "acha arijit ka kaun sa gaana sunoge" -> Output: "chat"
 
 Reply with ONLY one word: "aman", "chat", or "person". Nothing else.`;
 

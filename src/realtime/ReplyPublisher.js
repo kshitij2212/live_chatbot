@@ -4,20 +4,23 @@ import logger             from '../utils/logger.js';
 
 const log = logger.child({ module: 'ReplyPublisher' });
 
-const SEND_MODES   = new Set(['chat', 'data_channel']);
+const SEND_MODES   = new Set(['chat', 'data_channel', 'socket_io']);
 const textEncoder  = new TextEncoder();
 
 export function createReplyPublisher(config) {
   const {
     roomRef,
+    connectorRef,
     botIdentity,
     botDisplayName = botIdentity,
     sendMode       = 'chat',
     dataTopic      = 'chat',
   } = config;
 
-  if (!roomRef)      throw new Error('ReplyPublisher: roomRef is required');
   if (!botIdentity)  throw new Error('ReplyPublisher: botIdentity is required');
+  if (sendMode !== 'socket_io' && !roomRef) {
+    throw new Error('ReplyPublisher: roomRef is required');
+  }
 
   if (!SEND_MODES.has(sendMode)) {
     throw new Error(`ReplyPublisher: sendMode must be one of ${[...SEND_MODES].join(', ')}`);
@@ -62,8 +65,15 @@ export function createReplyPublisher(config) {
     });
   }
 
+  async function sendViaSocketIO(text) {
+    if (!connectorRef || !connectorRef.connector) {
+      throw new Error('ReplyPublisher: connectorRef.connector is required for sendMode: socket_io');
+    }
+    await connectorRef.connector.publishReply(text);
+  }
+
   async function onReplySend({ roomId, trigger, text, usage }) {
-    if (!roomRef.room) {
+    if (sendMode !== 'socket_io' && (!roomRef || !roomRef.room)) {
       log.warn({ roomId }, 'Cannot send reply — no active room instance');
       stats.failed++;
       bus.emit(Events.REPLY_FAILED, {
@@ -88,6 +98,8 @@ export function createReplyPublisher(config) {
     try {
       if (sendMode === 'chat') {
         await sendViaChatAPI(text.trim());
+      } else if (sendMode === 'socket_io') {
+        await sendViaSocketIO(text.trim());
       } else {
         await sendViaDataChannel(text.trim());
       }
