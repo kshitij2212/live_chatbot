@@ -5,7 +5,7 @@ import { classifyTarget } from './UtteranceTargetFilter.js';
 const log = logger.child({ module: 'TranscriptProcessor' });
 
 export function createTranscriptProcessor(config) {
-  const { context, behavior, gateCheck, botIdentity, botDisplayName } = config;
+  const { context, behavior, gateCheck, roomRef, botIdentity, botDisplayName } = config;
 
   if (!context)      throw new Error('TranscriptProcessor: context is required');
   if (!behavior)     throw new Error('TranscriptProcessor: behavior is required');
@@ -20,7 +20,11 @@ export function createTranscriptProcessor(config) {
 
     const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText);
 
-    if (blacklist.test(cleanText) || isZhaal || cleanText.length <= 2) {
+    const words = cleanText.toLowerCase().split(/\s+/).filter(Boolean);
+    const uniqueWords = new Set(words);
+    const isRepeatingNoise = uniqueWords.size === 1 && words.length > 1;
+
+    if (blacklist.test(cleanText) || isZhaal || isRepeatingNoise || cleanText.length <= 2) {
       log.debug({ roomId, text: cleanText }, 'Ignored short/filler/blacklisted transcript (likely noise/mumble)');
       return;
     }
@@ -44,6 +48,14 @@ export function createTranscriptProcessor(config) {
 
     log.debug({ roomId, speakerId, text }, '📝 Transcript received');
     try {
+      let resolvedUsername = speakerId;
+      if (roomRef?.room) {
+        const participant = roomRef.room.remoteParticipants?.get(speakerId) || roomRef.room.localParticipant;
+        if (participant?.name) {
+          resolvedUsername = participant.name;
+        }
+      }
+
       await context.addTranscript(roomId, text, speakerId);
       const decision = await behavior.evaluate({ roomId, type: 'transcript', text });
       if (!decision.shouldReply) return;
@@ -51,7 +63,7 @@ export function createTranscriptProcessor(config) {
         roomId,
         trigger:     text,
         triggerType: 'transcript',
-        username:    speakerId,
+        username:    resolvedUsername,
         userId:      speakerId,
         delayMs:     decision.delayMs,
       });

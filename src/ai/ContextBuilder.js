@@ -3,7 +3,7 @@ import logger                  from '../utils/logger.js';
 
 const log = logger.child({ module: 'ContextBuilder' });
 
-export function createContextBuilder({ contextMemory, personaMemory, promptBuilder, botId }) {
+export function createContextBuilder({ contextMemory, personaMemory, promptBuilder, roomRef, botId }) {
   if (!contextMemory) throw new Error('ContextBuilder: contextMemory is required');
   if (!personaMemory) throw new Error('ContextBuilder: personaMemory is required');
   if (!promptBuilder) throw new Error('ContextBuilder: promptBuilder is required');
@@ -13,7 +13,16 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
     const merged = [];
 
     for (const t of transcripts) {
-      if (t) merged.push({ role: 'user', userId: t.speakerId, username: t.speakerId, text: t.text, ts: t.ts });
+      if (t) {
+        let username = t.speakerId;
+        if (roomRef?.room) {
+          const participant = roomRef.room.remoteParticipants?.get(t.speakerId) || roomRef.room.localParticipant;
+          if (participant?.name) {
+            username = participant.name;
+          }
+        }
+        merged.push({ role: 'user', userId: t.speakerId, username, text: t.text, ts: t.ts });
+      }
     }
 
     for (const c of comments) {
@@ -58,6 +67,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       trigger:    normalisedTrigger,
       history,
       persona,
+      meta:       rawContext.meta,
       builtAt:    new Date().toISOString(),
     };
 
