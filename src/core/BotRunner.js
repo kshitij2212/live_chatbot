@@ -84,11 +84,15 @@ export function createBotRunner() {
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
       if (room) roomRef.room = room;
       log.info({ roomId, roomName }, '🎙  Joined room');
-      context.setMeta(roomId, {
-        roomName,
-        botUserId: config.livekit.botIdentity,
-        startedAt: new Date().toISOString(),
-      }).catch((err) => log.warn({ err }, 'Failed to set room meta'));
+      context.clearRoom(roomId)
+        .then(() => {
+          return context.setMeta(roomId, {
+            roomName,
+            botUserId: config.livekit.botIdentity,
+            startedAt: new Date().toISOString(),
+          });
+        })
+        .catch((err) => log.warn({ err }, 'Failed to clear context or set room meta'));
     });
 
     on(Events.ROOM_DISCONNECTED, ({ roomId, reason }) => {
@@ -172,6 +176,7 @@ export function createBotRunner() {
       contextMemory: context,
       personaMemory: persona,
       promptBuilder,
+      roomRef,
       botId:         useLiveKit ? config.livekit.botPersona : (config.livekit.botPersona || 'zara-bot'),
     });
     log.debug('✓ ContextBuilder');
@@ -272,6 +277,7 @@ export function createBotRunner() {
         context,
         behavior,
         gateCheck,
+        roomRef,
         botIdentity:    config.livekit.botIdentity,
         botDisplayName: config.livekit.botDisplayName,
       });

@@ -46,7 +46,7 @@ export function createSTTService(config) {
     let raw;
     try {
       raw = await whisper.transcribe(samples, sampleRate);
-      log.info({ roomId, speakerId, raw }, '🎙️ RAW WHISPER OUTPUT');
+      // log.info({ roomId, speakerId, raw }, '🎙️ RAW WHISPER OUTPUT');
     } catch (err) {
       log.error({ roomId, speakerId, err }, 'STT: Groq API error');
       bus.emit(Events.STT_FAILED, {
