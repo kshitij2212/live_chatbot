@@ -19,7 +19,7 @@ export class BehaviorEngine {
 
   async evaluate({ roomId, type, text }) {
 
-    const onCooldown = await this.cooldown.isOnCooldown(roomId);
+    const onCooldown = await this.cooldown.isOnCooldown(roomId, type);
     if (onCooldown) {
       log.debug({ roomId, type }, 'On cooldown — skipping');
       return { shouldReply: false, delayMs: 0 };
@@ -31,7 +31,7 @@ export class BehaviorEngine {
       return { shouldReply: false, delayMs: 0 };
     }
 
-    await this.cooldown.setCooldown(roomId);
+    await this.cooldown.setCooldown(roomId, type);
 
     const delayMs = computeTypingDelay(text);
 

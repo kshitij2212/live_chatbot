@@ -12,21 +12,24 @@ export class CooldownManager {
     this.ttl   = cooldownSeconds;
   }
 
-  async isOnCooldown(roomId) {
-    const key    = `${KEY_PREFIX}${roomId}`;
+  async isOnCooldown(roomId, type) {
+    if (type === 'transcript') {
+      return false; // Audio is never on cooldown
+    }
+    const key    = `${KEY_PREFIX}${roomId}:chat`;
     const exists = await this.redis.exists(key);
     return exists === 1;
   }
 
-  async setCooldown(roomId) {
+  async setCooldown(roomId, type) {
     if (this.ttl <= 0) return;
-    const key = `${KEY_PREFIX}${roomId}`;
+    const key = `${KEY_PREFIX}${roomId}:chat`;
     await this.redis.set(key, '1', 'EX', this.ttl);
-    log.debug({ roomId, ttlSeconds: this.ttl }, 'Cooldown armed');
+    log.debug({ roomId, type, ttlSeconds: this.ttl }, 'Chat cooldown armed');
   }
 
   async clearCooldown(roomId) {
-    await this.redis.del(`${KEY_PREFIX}${roomId}`);
+    await this.redis.del(`${KEY_PREFIX}${roomId}:chat`);
     log.debug({ roomId }, 'Cooldown cleared');
   }
 }
