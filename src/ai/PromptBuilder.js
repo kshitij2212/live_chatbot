@@ -15,7 +15,7 @@ export function createPromptBuilder(config = {}) {
     tokenBudgetManager = null,
   } = config;
 
-  function buildSystemPrompt(persona) {
+  function buildSystemPrompt(persona, roomContext = {}) {
     const {
       displayName = 'Aman',
       age,
@@ -33,68 +33,54 @@ export function createPromptBuilder(config = {}) {
     const energy = personality.energy ?? 'medium';
     const humor  = personality.humor  ?? 'light';
 
-    const maxSentences = replyStyle.maxSentences   ?? 2;
-    const useEmojis    = replyStyle.useEmojis      ?? false;
-    const emojiFreq    = replyStyle.emojiFrequency ?? 'rare';
+    const maxSentences = replyStyle.maxSentences    ?? 2;
+    const useEmojis    = replyStyle.useEmojis       ?? false;
+    const emojiFreq    = replyStyle.emojiFrequency  ?? 'rare';
     const fillerWords  = replyStyle.usesFillerWords ?? false;
-    const examples     = replyStyle.exampleReplies ?? [];
+    const examples     = replyStyle.exampleReplies  ?? [];
 
     const identityParts = [displayName];
     if (age)      identityParts.push(`${age} years old`);
     if (location) identityParts.push(`from ${location}`);
 
+    const roomLabel = roomContext.roomName || roomContext.roomId || 'this live stream';
+
     const sections = [
-
-      `You are ${identityParts.join(', ')} — a real human viewer watching a live stream.`,
-      `Personality: ${traits}. Tone: ${tone}; energy: ${energy}; humor: ${humor}.`,
-
-      ...(backstory   ? [`Background: ${backstory}`]                             : []),
-      ...(interests.length ? [`Especially interested in: ${interests.join(', ')}.`] : []),
+      `You are ${identityParts.join(', ')} — a viewer watching "${roomLabel}".`,
+      `Traits: ${traits}. Tone: ${tone}; energy: ${energy}; humor: ${humor}.`,
+      ...(backstory        ? [`Backstory: ${backstory}`]                             : []),
+      ...(interests.length ? [`Interests: ${interests.join(', ')}.`] : []),
 
       '',
-      '## Identity (critical)',
-      `- Your name is ${displayName}. If asked, say "${displayName}" — never "bot", "AI", "assistant", or similar.`,
-      '- You are a normal human user. Never refer to yourself as a bot, AI, model, or assistant.',
-      '- If asked whether you are a bot/AI, deflect casually (e.g. "lol nope, just chilling here").',
+      '## Rules',
+      `- Name: ${displayName}. Never say you are a bot/AI/assistant. Casually deflect if asked.`,
+      `- Language: ${language}. Keep Hinglish clear, simple and natural. Correct grammar: use "hoon" with "main" (no "main hai"). Do not translate "chilling" literally as "chilla".`,
+      `- Length: Max ${maxSentences} short sentence${maxSentences === 1 ? '' : 's'}.`,
+      useEmojis   ? `- Emojis: use ${emojiFreq}.`                                              : '- No emojis.',
+      fillerWords ? '- Filler words: use naturally (yaar, bhai, haan).'                        : '- No filler words.',
+      '- Sound like a real chat user (no hashtags, no sycophantic openers).',
+      '- Return empty string (silent) if user text is nonsense, noise, or repeated gibberish (e.g., "झाल", "प्रुट", "कर दो"). Never spam "don\'t understand" replies.',
+      '- Grounding: Only reply to context in history. Never invent past events or say "pehle bhi poocha tha".',
+      '- Ignore typos/repetition casually. Accept slang without correcting.',
+      '- If asked how you found this stream, say you saw it live and clicked. No fake reasons.',
+      '- Honesty: Do not pretend to hear songs or see videos unless explicitly named. Ask for details if unsure.',
 
-      '',
-      '## How you behave',
-      `- Respond in ${language}.`,
-      `- Reply length: at most ${maxSentences} short sentence${maxSentences === 1 ? '' : 's'}.`,
-      useEmojis
-        ? `- Use emojis ${emojiFreq}.`
-        : '- Do not use emojis.',
-      fillerWords
-        ? '- Use casual filler words naturally where appropriate (yaar, bhai, haan, etc.).'
-        : '- Speak cleanly without filler words.',
-      '- Sound like a human viewer in a live chat — not an AI assistant.',
-      '- Never use hashtags.',
-      '- Never open with sycophantic phrases like "Great question!" or "Absolutely!".',
-      '- If you have nothing interesting to say, reply with an empty string.',
-      '- Never repeat the exact same or very similar reply that you have already sent previously in the conversation history. Keep your responses fresh, diverse, and contextually appropriate.',
-      '- Always respond directly, logically, and contextually to the user\'s comment. Do not hallucinate previous interactions, make up fictitious typos, or try to correct imaginary messages of your own.',
-      '- NEVER mention, complain about, or highlight when the streamer or other users repeat themselves, say the same thing multiple times, or make typos/filler sounds. Casually ignore any repetition or filler, and respond normally to the main context or steer the chat to a new topic.',
-
-      ...(avoid.length ? [`- Never discuss: ${avoid.join(', ')}.`] : []),
+      ...(avoid.length ? [`- Avoid: ${avoid.join(', ')}.`] : []),
 
       ...(examples.length
-        ? ['', '## Examples of how you talk', ...examples.map(r => `- ${r}`)]
+        ? ['', '## Examples', ...examples.map(r => `- ${r}`)]
         : []
       ),
-
       '',
       '## Context',
-      `Current Time: ${new Date().toString()}`,
-      'You are in a live stream chat. Other viewers are commenting in real time.',
-      'Respond only to the most recent comment shown to you.',
-      'Keep replies concise — this is a fast-moving chat, not a deep conversation.',
+      'Live chat setting. Respond ONLY to the latest message. Be brief.',
     ];
 
     return sections.join('\n');
   }
 
   function formatHistory(history) {
-    return history.reduce(( acc, entry) => {
+    return history.reduce((acc, entry) => {
       const text = entry?.text?.trim();
       if (!text) return acc;
 
@@ -114,13 +100,29 @@ export function createPromptBuilder(config = {}) {
     }
 
     let total = 0;
-    const kept =  ([]);
+    let i     = messages.length - 1;
+    const kept = [];
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const tokens = countTokens(messages[i].content);
-      if (total + tokens > budgetTokens) break;
-      kept.unshift(messages[i]);
-      total += tokens;
+    while (i >= 0) {
+      const msg    = messages[i];
+      const tokens = countTokens(msg.content);
+
+      if (msg.role === 'assistant' && i > 0) {
+        const prevTokens = countTokens(messages[i - 1].content);
+        if (total + tokens + prevTokens > budgetTokens) {
+          break;
+        }
+        kept.unshift(messages[i - 1], msg);
+        total += tokens + prevTokens;
+        i -= 2;
+      } else if (msg.role !== 'assistant') {
+        if (total + tokens > budgetTokens) break;
+        kept.unshift(msg);
+        total += tokens;
+        i -= 1;
+      } else {
+        i -= 1;
+      }
     }
 
     const dropped = messages.length - kept.length;
@@ -131,25 +133,29 @@ export function createPromptBuilder(config = {}) {
     return kept;
   }
 
-  function build(contextPayload) {
-    const { persona, history = [], trigger, roomId } = contextPayload;
+  function build(contextPayload, now = new Date()) {
+    const { persona, history = [], trigger, roomId, meta } = contextPayload;
 
-    if (!persona) throw new Error('PromptBuilder.build: persona is required');
-    if (!trigger) throw new Error('PromptBuilder.build: trigger is required');
+    if (!persona)              throw new Error('PromptBuilder.build: persona is required');
+    if (!trigger)              throw new Error('PromptBuilder.build: trigger is required');
     if (!trigger.text?.trim()) throw new Error('PromptBuilder.build: trigger.text must not be empty');
 
-    const systemMessage =  ({
+    const roomContext = { roomId, roomName: meta?.roomName };
+
+    const systemMessage = {
       role:    'system',
-      content: buildSystemPrompt(persona),
-    });
+      content: buildSystemPrompt(persona, roomContext),
+    };
 
     const rawHistory     = formatHistory(history);
     const trimmedHistory = trimToTokenBudget(rawHistory, historyTokenBudget);
 
-    const currentMessage =  ({
+    const timePrefix = trigger.includeTimestamp ? `[${now.toISOString()}] ` : '';
+    const username = trigger.username || 'viewer';
+    const currentMessage = {
       role:    'user',
-      content: `${trigger.username}: ${trigger.text.trim()}`,
-    });
+      content: `${timePrefix}${username}: ${trigger.text.trim()}`,
+    };
 
     const messages = [systemMessage, ...trimmedHistory, currentMessage];
 
