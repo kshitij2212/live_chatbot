@@ -135,10 +135,30 @@ export function createBotRunner() {
   }
 
   async function start() {
+    const arg = process.argv[2];
+    if (arg && !arg.startsWith('-')) {
+      const botId = arg.endsWith('-bot') ? arg : `${arg}-bot`;
+      config.livekit.botPersona = botId;
+    }
+
+    const activePersona = config.livekit.botPersona;
+    const blockedUserIds = [];
+    if (activePersona.includes('shivam')) {
+      config.socket.userId = Number(process.env.SOCKET_USER_ID_SHIVAM ?? '3');
+      config.livekit.botIdentity = process.env.BOT_IDENTITY_SHIVAM ?? 'shivam-bot';
+      config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_SHIVAM ?? 'Shivam';
+      blockedUserIds.push('2', 'aman', 'aman-bot');
+    } else if (activePersona.includes('aman')) {
+      config.socket.userId = Number(process.env.SOCKET_USER_ID_AMAN ?? '2');
+      config.livekit.botIdentity = process.env.BOT_IDENTITY_AMAN ?? 'aman-bot';
+      config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_AMAN ?? 'Aman';
+      blockedUserIds.push('3', 'shivam', 'shivam-bot');
+    }
+
     log.info('═══════════════════════════════════════════');
     log.info('  Roxstar AI Bot — starting up');
     log.info('═══════════════════════════════════════════');
-    log.info({ room: config.livekit.roomName, bot: config.livekit.botIdentity }, 'Config loaded');
+    log.info({ room: config.livekit.roomName, bot: config.livekit.botIdentity, persona: config.livekit.botPersona }, 'Config loaded');
 
     log.info('Connecting to Redis...');
     redis = await createRedisClient(config.redis.url);
@@ -197,7 +217,7 @@ export function createBotRunner() {
     llm = createLLMService({ groqAdapter, responseParser });
     log.debug('✓ LLMService');
 
-    gateCheck = createGroqGateCheck({ groqAdapter });
+    gateCheck = createGroqGateCheck({ groqAdapter, botName: config.livekit.botDisplayName });
     log.debug('✓ GroqGateCheck');
 
     joinGreeting = createJoinGreetingService({
@@ -216,6 +236,7 @@ export function createBotRunner() {
       maxLength:            config.commentFilter.maxLength,
       rateLimitWindowMs:    config.commentFilter.rateLimitWindowMs,
       rateLimitMaxMessages: config.commentFilter.rateLimitMaxMessages,
+      blockedUserIds,
     });
     log.debug('✓ CommentFilter');
 
@@ -280,6 +301,7 @@ export function createBotRunner() {
         roomRef,
         botIdentity:    config.livekit.botIdentity,
         botDisplayName: config.livekit.botDisplayName,
+        blockedUserIds,
       });
       transcriptProcessor.init();
       log.debug('✓ TranscriptProcessor');
