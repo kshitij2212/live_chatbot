@@ -72,6 +72,12 @@ export function classifyTarget(text, botNames = []) {
     botSet.add('अमन');
     botSet.add('आमन');
   }
+  if (botSet.has('shivam')) {
+    botSet.add('शिवम');
+    botSet.add('शवाम');
+    botSet.add('शीवम');
+    botSet.add('शवंम');
+  }
   const names  = extractNames(text, botSet);
 
   const mentionsBot = [...names].some((n) => botSet.has(n));

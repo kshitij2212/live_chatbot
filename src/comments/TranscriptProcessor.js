@@ -5,7 +5,7 @@ import { classifyTarget } from './UtteranceTargetFilter.js';
 const log = logger.child({ module: 'TranscriptProcessor' });
 
 export function createTranscriptProcessor(config) {
-  const { context, behavior, gateCheck, roomRef, botIdentity, botDisplayName } = config;
+  const { context, behavior, gateCheck, roomRef, botIdentity, botDisplayName, blockedUserIds } = config;
 
   if (!context)      throw new Error('TranscriptProcessor: context is required');
   if (!behavior)     throw new Error('TranscriptProcessor: behavior is required');
@@ -13,6 +13,11 @@ export function createTranscriptProcessor(config) {
 
   async function onTranscriptReady({ roomId, text, speakerId }) {
     if (!text?.trim()) return;
+
+    if (blockedUserIds && (blockedUserIds.includes(String(speakerId).toLowerCase()) || blockedUserIds.includes(speakerId))) {
+      log.debug({ speakerId, text }, 'Transcript from blocked bot ignored');
+      return;
+    }
 
     const cleanText = text.trim();
 

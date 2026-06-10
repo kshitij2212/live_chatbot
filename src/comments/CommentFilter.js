@@ -50,12 +50,12 @@ export function createCommentFilter(config = {}) {
     const { userId, username, text } = comment;
     const lowerText = text.toLowerCase();
 
-    for (const kw of cfg.triggerKeywords) {
-      if (text.includes(kw)) return null;
+    if (blockedSet.has(String(userId).toLowerCase()) || blockedSet.has(String(username).toLowerCase())) {
+      return 'blocked_user';
     }
 
-    if (blockedSet.has(String(userId).toLowerCase())) {
-      return 'blocked_user';
+    for (const kw of cfg.triggerKeywords) {
+      if (text.includes(kw)) return null;
     }
 
     if (text.length < cfg.minLength) {
