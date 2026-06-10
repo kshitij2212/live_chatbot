@@ -20,8 +20,9 @@ export function createTranscriptProcessor(config) {
     }
 
     const cleanText = text.trim();
+    const normalizedText = cleanText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?…\s।]+$/, '').trim();
 
-    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे)$/i;
+    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे|जो|जाँ|प्रेवाँ|ह|हम)$/i;
 
     const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText);
 
@@ -29,8 +30,8 @@ export function createTranscriptProcessor(config) {
     const uniqueWords = new Set(words);
     const isRepeatingNoise = uniqueWords.size === 1 && words.length > 1;
 
-    if (blacklist.test(cleanText) || isZhaal || isRepeatingNoise || cleanText.length <= 2) {
-      log.debug({ roomId, text: cleanText }, 'Ignored short/filler/blacklisted transcript (likely noise/mumble)');
+    if (blacklist.test(normalizedText) || isZhaal || isRepeatingNoise || normalizedText.length <= 2) {
+      log.debug({ roomId, text: cleanText, normalizedText }, 'Ignored short/filler/blacklisted transcript (likely noise/mumble)');
       return;
     }
 
