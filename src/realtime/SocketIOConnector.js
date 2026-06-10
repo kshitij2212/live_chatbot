@@ -13,6 +13,7 @@ export function createSocketIOConnector(config) {
     liveId,
     userId,
     broadcasterId,
+    redis,
     eventBus = defaultBus,
   } = config;
 
@@ -158,7 +159,19 @@ export function createSocketIOConnector(config) {
           return;
         }
 
-        if (!payload || payload.type !== 'CHAT_MESSAGE') {
+        if (!payload) return;
+
+        if (payload.type === 'BROADCASTER_DETAILS') {
+          const details = payload.broadcaster_details;
+          if (details && details.userId && details.username && redis) {
+            log.info({ broadcasterId: details.userId, username: details.username }, 'Caching broadcaster details in Redis');
+            redis.set(`user:${details.userId}`, JSON.stringify({ username: details.username }), 'EX', 3600)
+              .catch(err => log.warn({ err }, 'Failed to cache broadcaster details in Redis'));
+          }
+          return;
+        }
+
+        if (payload.type !== 'CHAT_MESSAGE') {
           return;
         }
 

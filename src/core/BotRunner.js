@@ -222,6 +222,7 @@ export function createBotRunner() {
     log.debug('✓ GroqGateCheck');
 
     joinGreeting = createJoinGreetingService({
+      redis,
       groqAdapter,
       personaMemory: persona,
       botPersona:    useLiveKit ? config.livekit.botPersona : (config.livekit.botPersona || 'zara-bot'),
@@ -281,6 +282,7 @@ export function createBotRunner() {
         liveId:               config.socket.liveId,
         userId:               config.socket.userId,
         broadcasterId:        config.socket.broadcasterId,
+        redis,
       });
       log.debug('✓ SocketIOConnector');
     }

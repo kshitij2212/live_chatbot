@@ -13,7 +13,7 @@ export function createReplyProcessor(config) {
   async function onReplyReady({ roomId, text, trigger, usage }) {
     const delayMs = trigger?.delayMs ?? 0;
     if (delayMs > 0) {
-      log.debug({ roomId, delayMs }, '⌨️  Simulating typing delay');
+      log.debug({ roomId, delayMs }, 'Simulating typing delay');
       await sleep(delayMs);
     }
 
