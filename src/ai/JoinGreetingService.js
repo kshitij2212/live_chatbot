@@ -27,9 +27,9 @@ export function createJoinGreetingService(config) {
 
         if (room && room.remoteParticipants) {
           for (const [, participant] of room.remoteParticipants) {
+            const identity = participant.identity?.trim() || '';
             let name = (participant.name || participant.identity)?.trim();
-            if (name && !name.toLowerCase().includes('bot')) {
-              // If it is numeric (user ID), check Redis cache for username
+            if (name && !name.toLowerCase().includes('bot') && !identity.toLowerCase().includes('bot')) {
               if (/^\d+$/.test(name) && redis) {
                 try {
                   const cachedUser = await redis.get(`user:${name}`);
@@ -52,10 +52,24 @@ export function createJoinGreetingService(config) {
         }
 
         let text = '';
-        if (targetUser) {
-          text = `Namaste ${targetUser} Ji, kaise ho aap?`;
+        if (botPersona.includes('shivam')) {
+          if (targetUser) {
+            text = `Hello ${targetUser} Ji`;
+          } else {
+            text = 'Hello';
+          }
+        } else if (botPersona.includes('abhishek')) {
+          if (targetUser) {
+            text = `Hey ${targetUser} Ji`;
+          } else {
+            text = 'Hey';
+          }
         } else {
-          text = 'Namaste, kaise ho aap?';
+          if (targetUser) {
+            text = `Namaste ${targetUser} Ji, kaise ho aap?`;
+          } else {
+            text = 'Namaste, kaise ho aap?';
+          }
         }
 
         log.info({ text, roomId }, 'Publishing join greeting');

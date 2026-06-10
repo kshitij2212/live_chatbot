@@ -100,6 +100,13 @@ export function classifyTarget(text, botNames = []) {
     botSet.add('शिवन');
     botSet.add('शिवा');
   }
+  if (botSet.has('abhishek')) {
+    botSet.add('अभिषेक');
+    botSet.add('अभिशेक');
+    botSet.add('अभि');
+    botSet.add('अभिशेख');
+    botSet.add('अब्बी');
+  }
   const names  = extractNames(text, botSet);
 
   const mentionsBot = [...names].some((n) => botSet.has(n));
