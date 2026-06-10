@@ -40,32 +40,52 @@ export function createWhisperAdapter(config) {
     formData.append('language', 'hi');
     formData.append('temperature', '0');
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-
     let response;
-    try {
-      response = await fetch(GROQ_AUDIO_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: formData,
-        signal: controller.signal,
-      });
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error(`Groq Whisper request timed out after 15s`);
+    let lastError = null;
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+
+      try {
+        response = await fetch(GROQ_AUDIO_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+
+        if (response.ok) {
+          clearTimeout(timer);
+          break;
+        }
+
+        let errorBody = '';
+        try { errorBody = await response.text(); } catch {  }
+        lastError = new Error(`Groq Whisper API error ${response.status}: ${errorBody.slice(0, 200)}`);
+        log.warn({ attempt, error: lastError.message }, 'Groq Whisper API error — retrying');
+
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          lastError = new Error(`Groq Whisper request timed out after 15s`);
+        } else {
+          lastError = new Error(`Groq Whisper network error: ${err.message}`);
+        }
+        log.warn({ attempt, error: lastError.message }, 'Groq Whisper fetch failed — retrying');
+      } finally {
+        clearTimeout(timer);
       }
-      throw new Error(`Groq Whisper network error: ${err.message}`);
-    } finally {
-      clearTimeout(timer);
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
     }
 
-    if (!response.ok) {
-      let errorBody = '';
-      try { errorBody = await response.text(); } catch {  }
-      throw new Error(`Groq Whisper API error ${response.status}: ${errorBody.slice(0, 200)}`);
+    if (!response || !response.ok) {
+      throw lastError || new Error('Groq Whisper transcription failed after all attempts');
     }
 
     let json;

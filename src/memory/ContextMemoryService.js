@@ -5,6 +5,11 @@ const log = logger.child({ module: 'ContextMemoryService' });
 
 export function createContextMemory(redis, config = {}) {
   const ttl = config.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const unifiedRoomId = config.unifiedRoomId;
+
+  function getRoomKey(roomId) {
+    return unifiedRoomId || roomId;
+  }
 
   async function pushToList(key, entry, limit) {
     const serialized = JSON.stringify(entry);
@@ -30,42 +35,42 @@ export function createContextMemory(redis, config = {}) {
 
   async function addTranscript(roomId, text, speakerId) {
     await pushToList(
-      keys.transcripts(roomId),
+      keys.transcripts(getRoomKey(roomId)),
       { text, speakerId, ts: Date.now() },
       limits.transcripts
     );
   }
 
   async function getTranscripts(roomId) {
-    return readList(keys.transcripts(roomId));
+    return readList(keys.transcripts(getRoomKey(roomId)));
   }
 
   async function addComment(roomId, userId, username, text) {
     await pushToList(
-      keys.comments(roomId),
+      keys.comments(getRoomKey(roomId)),
       { userId, username, text, ts: Date.now() },
       limits.comments
     );
   }
 
   async function getComments(roomId) {
-    return readList(keys.comments(roomId));
+    return readList(keys.comments(getRoomKey(roomId)));
   }
 
   async function addBotReply(roomId, text) {
     await pushToList(
-      keys.botReplies(roomId),
+      keys.botReplies(getRoomKey(roomId)),
       { text, ts: Date.now() },
       limits.botReplies
     );
   }
 
   async function getBotReplies(roomId) {
-    return readList(keys.botReplies(roomId));
+    return readList(keys.botReplies(getRoomKey(roomId)));
   }
 
   async function setMeta(roomId, meta) {
-    const key = keys.meta(roomId);
+    const key = keys.meta(getRoomKey(roomId));
 
     const pairs = Object.entries(meta).flat();
     await redis
@@ -76,17 +81,17 @@ export function createContextMemory(redis, config = {}) {
   }
 
   async function getMeta(roomId) {
-    const data = await redis.hgetall(keys.meta(roomId));
+    const data = await redis.hgetall(keys.meta(getRoomKey(roomId)));
 
     return Object.keys(data).length ? data : null;
   }
 
   async function setCooldown(roomId, durationMs) {
-    await redis.set(keys.cooldown(roomId), '1', 'PX', durationMs);
+    await redis.set(keys.cooldown(getRoomKey(roomId)), '1', 'PX', durationMs);
   }
 
   async function isOnCooldown(roomId) {
-    const result = await redis.exists(keys.cooldown(roomId));
+    const result = await redis.exists(keys.cooldown(getRoomKey(roomId)));
     return result === 1;
   }
 
@@ -102,13 +107,13 @@ export function createContextMemory(redis, config = {}) {
 
   async function clearRoom(roomId) {
     await redis.del(
-      keys.transcripts(roomId),
-      keys.comments(roomId),
-      keys.botReplies(roomId),
-      keys.meta(roomId),
-      keys.cooldown(roomId)
+      keys.transcripts(getRoomKey(roomId)),
+      keys.comments(getRoomKey(roomId)),
+      keys.botReplies(getRoomKey(roomId)),
+      keys.meta(getRoomKey(roomId)),
+      keys.cooldown(getRoomKey(roomId))
     );
-    log.debug({ roomId }, 'Room context cleared');
+    log.debug({ roomId: getRoomKey(roomId) }, 'Room context cleared');
   }
 
   return {

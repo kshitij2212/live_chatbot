@@ -7,16 +7,16 @@ const log = logger.child({ module: 'ModerationService' });
 export class ModerationService {
 
   constructor({ groqKey } = {}) {
-  groqKey ??= process.env.GROQ_API_KEY;
+    groqKey ??= process.env.GROQ_API_KEY;
 
-  this.adapter = groqKey?.trim()
-    ? new GroqModerationAdapter(groqKey)
-    : null;
+    this.adapter = groqKey?.trim()
+      ? new GroqModerationAdapter(groqKey)
+      : null;
 
-  if (!this.adapter) {
-    log.warn('No groqKey provided — ModerationService will only run PromptInjectionGuard');
+    if (!this.adapter) {
+      log.warn('No groqKey provided — ModerationService will only run PromptInjectionGuard');
+    }
   }
-}
 
   async check(text) {
     if (!text?.trim()) {
@@ -40,8 +40,7 @@ export class ModerationService {
           };
         }
       } catch (err) {
-
-        log.error({ err }, 'Groq Moderation (Llama Guard) unavailable — failing open');
+        log.error({ err, text: sanitised }, 'Groq Moderation (Llama Guard) unavailable — failing open');
       }
     }
 

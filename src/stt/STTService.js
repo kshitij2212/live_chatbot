@@ -59,7 +59,7 @@ export function createSTTService(config) {
     }
 
     const text = normalizeTranscript(raw);
-    log.info({ roomId, speakerId, rawInput: raw, normalizedOutput: text }, '🔍 RAW vs NORMALIZED');
+    // log.info({ roomId, speakerId, rawInput: raw, normalizedOutput: text }, '🔍 RAW vs NORMALIZED');
 
     if (!text) {
       log.debug({ roomId, speakerId, raw }, 'STT: transcript empty after normalization');

@@ -67,16 +67,38 @@ const ROOM_QUESTION_RE = /\b(koi\s+batao|koi\s+bolo|anyone\s+know|koi\s+hai|kisi
 const OTHER_PERSON_TERMS = /\b(didi|bhaiya|di|sis|sister|bro|brother)\b|दीदी|भैया|दी|ब्रदर/iu;
 
 export function classifyTarget(text, botNames = []) {
-  const botSet = new Set(botNames.map((n) => n.toLowerCase()));
+  const botSet = new Set();
+  for (const name of botNames) {
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    botSet.add(lower);
+    const parts = lower.split(/\s+/);
+    for (const part of parts) {
+      if (part.length >= 2) botSet.add(part);
+    }
+  }
+
   if (botSet.has('aman')) {
     botSet.add('अमन');
     botSet.add('आमन');
+    botSet.add('अमं');
+    botSet.add('अमान');
+    botSet.add('हमन');
   }
   if (botSet.has('shivam')) {
     botSet.add('शिवम');
     botSet.add('शवाम');
     botSet.add('शीवम');
     botSet.add('शवंम');
+    botSet.add('शेबंबाई');
+    botSet.add('शेबं');
+    botSet.add('शिबम');
+    botSet.add('शिवं');
+    botSet.add('севм');
+    botSet.add('सेवम');
+    botSet.add('शेबम');
+    botSet.add('शिवन');
+    botSet.add('शिवा');
   }
   const names  = extractNames(text, botSet);
 

@@ -4,6 +4,9 @@ const log = logger.child({ module: 'GroqModerationAdapter' });
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+// NOTE: If switching to an actual Llama Guard fine-tune (e.g. meta-llama/Llama-Guard-3-8B),
+// the prompt format changes significantly — Llama Guard expects a structured [INST] conversation
+// template, not a freeform system message. Update SYSTEM_PROMPT accordingly.
 const MODEL = 'openai/gpt-oss-safeguard-20b';
 
 const SYSTEM_PROMPT = `You are a content moderation classifier.
@@ -53,6 +56,7 @@ export class GroqModerationAdapter {
   }
 
   async check(text) {
+
     const res = await fetch(GROQ_API_URL, {
       method: 'POST',
       headers: {
@@ -60,19 +64,19 @@ export class GroqModerationAdapter {
         'Authorization': `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        model:      MODEL,
-        messages:   [
+        model:       MODEL,
+        messages:    [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user',   content: text },
         ],
-        max_tokens: 50,
+        max_tokens:  50,
         temperature: 0,
       }),
     });
 
     if (!res.ok) {
       let detail = '';
-      try { detail = await res.text(); } catch {  }
+      try { detail = await res.text(); } catch { }
       throw new Error(`Groq Moderation API error: ${res.status} ${res.statusText} ${detail}`);
     }
 
@@ -82,8 +86,7 @@ export class GroqModerationAdapter {
     log.debug({ output }, 'Llama Guard raw response');
 
     if (output.startsWith('unsafe')) {
-
-      const codesPart = output.replace(/^unsafe[:\s]*/i, '').split('\n')[0] ?? '';
+      const codesPart = output.replace(/^unsafe[:\s\n]*/i, '').split('\n')[0] ?? '';
       const codes     = codesPart.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
       const flaggedCategories = codes
         .map(code => CATEGORY_MAP[code] ?? code.toLowerCase())

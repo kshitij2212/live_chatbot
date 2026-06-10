@@ -82,6 +82,11 @@ export function createResponseParser(config = {}) {
 
     let text = cleanText(rawContent);
 
+    const SILENT_RE = /^\s*[\(\[\*]?\s*(silent|remains? silent|stays? silent|no reply|ignore)\s*[\)\]\*]?\s*$/i;
+    if (SILENT_RE.test(text)) {
+      text = '';
+    }
+
     if (text.length > maxReplyChars) {
       const truncated = text.slice(0, maxReplyChars);
       const lastSpace = truncated.lastIndexOf(' ');

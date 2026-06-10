@@ -174,6 +174,7 @@ export function createBotRunner() {
       maxCommentEntries:    config.context.windowSize,
       maxBotReplyEntries:   config.context.windowSize,
       contextTtl:           config.redis.contextTtlSeconds,
+      unifiedRoomId:        config.livekit.roomName,
     });
     log.debug('✓ ContextMemory');
 

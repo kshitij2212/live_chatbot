@@ -1,3 +1,3 @@
 export { ModerationService }         from './ModerationService.js';
-export { OpenAIModerationAdapter }   from './OpenAIModerationAdapter.js';
+export { GroqModerationAdapter }   from './GroqModerationAdapter.js';
 export { sanitise }                  from './PromptInjectionGuard.js';
