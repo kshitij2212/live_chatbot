@@ -9,6 +9,8 @@
   "scripts": {
     "start": "node --max-old-space-size=4096 --expose-gc src/core/BotRunner.js",
     "dev": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js",
+    "dev:aman": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js aman",
+    "dev:shivam": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js shivam",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
     "postinstall": "node src/utils/patchLiveKit.js"
   },
