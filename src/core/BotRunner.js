@@ -143,21 +143,26 @@ export function createBotRunner() {
 
     const activePersona = config.livekit.botPersona;
     const blockedUserIds = [];
+    const otherBotDisplayNames = [];  // display names of other bots for comment filtering
+
     if (activePersona.includes('shivam')) {
       config.socket.userId = Number(process.env.SOCKET_USER_ID_SHIVAM ?? '3');
       config.livekit.botIdentity = process.env.BOT_IDENTITY_SHIVAM ?? 'shivam-bot';
       config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_SHIVAM ?? 'Shivam';
       blockedUserIds.push('2', 'aman', 'aman-bot', '4', 'abhishek', 'abhishek-bot');
+      otherBotDisplayNames.push('Aman', 'Aman Gupta', 'aman-bot', 'Abhishek', 'abhishek-bot');
     } else if (activePersona.includes('aman')) {
       config.socket.userId = Number(process.env.SOCKET_USER_ID_AMAN ?? '2');
       config.livekit.botIdentity = process.env.BOT_IDENTITY_AMAN ?? 'aman-bot';
       config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_AMAN ?? 'Aman';
       blockedUserIds.push('3', 'shivam', 'shivam-bot', '4', 'abhishek', 'abhishek-bot');
+      otherBotDisplayNames.push('Shivam', 'Shivam Soni', 'shivam-bot', 'Abhishek', 'abhishek-bot');
     } else if (activePersona.includes('abhishek')) {
       config.socket.userId = Number(process.env.SOCKET_USER_ID_ABHISHEK ?? '4');
       config.livekit.botIdentity = process.env.BOT_IDENTITY_ABHISHEK ?? 'abhishek-bot';
       config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_ABHISHEK ?? 'Abhishek';
       blockedUserIds.push('2', 'aman', 'aman-bot', '3', 'shivam', 'shivam-bot');
+      otherBotDisplayNames.push('Aman', 'Aman Gupta', 'aman-bot', 'Shivam', 'Shivam Soni', 'shivam-bot');
     }
 
     log.info('═══════════════════════════════════════════');
@@ -192,6 +197,7 @@ export function createBotRunner() {
 
     promptBuilder = createPromptBuilder({
       historyTokenBudget: config.prompt.historyTokenBudget,
+      broadcasterId:      config.socket.broadcasterId,
     });
     log.debug('✓ PromptBuilder');
 
@@ -244,6 +250,8 @@ export function createBotRunner() {
       rateLimitWindowMs:    config.commentFilter.rateLimitWindowMs,
       rateLimitMaxMessages: config.commentFilter.rateLimitMaxMessages,
       blockedUserIds,
+      botNames:             [config.livekit.botDisplayName, config.livekit.botIdentity].filter(Boolean),
+      otherBotNames:        otherBotDisplayNames,
     });
     log.debug('✓ CommentFilter');
 

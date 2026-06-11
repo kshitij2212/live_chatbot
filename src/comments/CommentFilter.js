@@ -1,5 +1,6 @@
-import bus, { Events } from '../core/EventBus.js';
-import logger          from '../utils/logger.js';
+import bus, { Events }         from '../core/EventBus.js';
+import logger                   from '../utils/logger.js';
+import { classifyTarget }       from './UtteranceTargetFilter.js';
 
 const log = logger.child({ module: 'CommentFilter' });
 
@@ -14,6 +15,8 @@ const DEFAULTS = {
   replyProbability:     1.0,
 
   blockedUserIds:       [],
+  botNames:             [],   // current bot names — used for UtteranceTargetFilter
+  otherBotNames:        [],   // other bots' display names to block when addressed directly
   triggerKeywords:      [
     '?',
   ],
@@ -46,12 +49,42 @@ export function createCommentFilter(config = {}) {
 
   const blockedSet = new Set(cfg.blockedUserIds.map(id => String(id).toLowerCase()));
 
+  // Build word-boundary regexes for other bots' names (English)
+  const otherBotNameRegexes = (cfg.otherBotNames || []).map(
+    name => new RegExp(`\\b${name.replace(/[-/]/g, '[-/]')}\\b`, 'i')
+  );
+  // Build word-boundary regexes for current bot's names
+  const myBotNameRegexes = (cfg.botNames || []).map(
+    name => new RegExp(`\\b${name.replace(/[-/]/g, '[-/]')}\\b`, 'i')
+  );
+
   function evaluate(comment) {
     const { userId, username, text } = comment;
     const lowerText = text.toLowerCase();
 
     if (blockedSet.has(String(userId).toLowerCase()) || blockedSet.has(String(username).toLowerCase())) {
       return 'blocked_user';
+    }
+
+    // 1. Check if comment explicitly names another bot/person but NOT this bot
+    //    This handles cases like "Abhishek, I liked your choice" or "Hello Shivam"
+    if (otherBotNameRegexes.length > 0) {
+      const mentionsOther = otherBotNameRegexes.some(re => re.test(text));
+      if (mentionsOther) {
+        const mentionsSelf = myBotNameRegexes.some(re => re.test(text));
+        if (!mentionsSelf) {
+          log.debug({ text }, 'Comment names another bot — rejecting');
+          return 'directed_at_other';
+        }
+      }
+    }
+
+    // 2. UtteranceTargetFilter-based check for Hindi/mixed text
+    if (cfg.botNames && cfg.botNames.length > 0) {
+      const { target } = classifyTarget(text, cfg.botNames);
+      if (target === 'other_person') {
+        return 'directed_at_other';
+      }
     }
 
     for (const kw of cfg.triggerKeywords) {

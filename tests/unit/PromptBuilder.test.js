@@ -67,4 +67,24 @@ describe('PromptBuilder', () => {
     expect(messages[2]).toEqual({ role: 'assistant', content: 'Hello Bob' });
     expect(messages[3]).toEqual({ role: 'user', content: 'Bob: How are you?' });
   });
+
+  test('build tags broadcaster with (Streamer) in history and current message', () => {
+    const builder = createPromptBuilder({ broadcasterId: '12641' });
+    const payload = {
+      persona,
+      history: [
+        { role: 'user', userId: '12641', username: 'Owner', text: 'Hello Abhishek' },
+        { role: 'bot', text: 'Hey there' },
+      ],
+      trigger: { userId: '12641', username: 'Owner', text: 'How is the stream?' },
+      roomId: 'room-123',
+      meta: { roomName: 'Awesome Stream' },
+    };
+
+    const messages = builder.build(payload);
+    expect(messages.length).toBe(4);
+    expect(messages[1]).toEqual({ role: 'user', content: 'Owner (Streamer): Hello Abhishek' });
+    expect(messages[3]).toEqual({ role: 'user', content: 'Owner (Streamer): How is the stream?' });
+    expect(messages[0].content).toContain('Do NOT welcome them to the stream');
+  });
 });

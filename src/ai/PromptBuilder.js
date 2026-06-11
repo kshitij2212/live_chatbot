@@ -13,6 +13,7 @@ export function createPromptBuilder(config = {}) {
   const {
     historyTokenBudget = DEFAULT_HISTORY_TOKEN_BUDGET,
     tokenBudgetManager = null,
+    broadcasterId = null,
   } = config;
 
   function buildSystemPrompt(persona, roomContext = {}) {
@@ -71,6 +72,7 @@ export function createPromptBuilder(config = {}) {
       `- Name: ${displayName}. Never say you are a bot/AI/assistant. Casually deflect if asked.`,
       `- Language: ${language}. Keep Hinglish clear, simple and natural`,
       `- Respect: Always be polite and respectful. Use "aap" or "tum" (never use "tu", "tera", or disrespectful tone) when addressing the streamer or other users in chat.`,
+      `- Streamer/Host: The user marked with "(Streamer)" is the host/streamer of the stream. Do NOT welcome them to the stream (e.g. do not say "Swagat hai aapka stream pe", "Welcome to the stream", or similar) because they own the stream and are already hosting it. Respond to them normally and respectfully.`,
       `- Length: Max ${maxSentences} short sentence${maxSentences === 1 ? '' : 's'}.`,
       useEmojis   ? `- Emojis: use ${emojiFreq}.`                                              : '- No emojis.',
       fillerWords ? '- Filler words: use naturally (yaar, bhai, haan).'                        : '- No filler words.',
@@ -109,7 +111,9 @@ export function createPromptBuilder(config = {}) {
       if (entry.role === 'bot') {
         acc.push({ role: 'assistant', content: text });
       } else {
-        const prefix = entry.username ? `${entry.username}: ` : '';
+        const isStreamer = broadcasterId && String(entry.userId) === String(broadcasterId);
+        const roleSuffix = isStreamer ? ' (Streamer)' : '';
+        const prefix = entry.username ? `${entry.username}${roleSuffix}: ` : '';
         acc.push({ role: 'user', content: `${prefix}${text}` });
       }
       return acc;
@@ -173,10 +177,12 @@ export function createPromptBuilder(config = {}) {
     const trimmedHistory = trimToTokenBudget(rawHistory, historyTokenBudget);
 
     const timePrefix = trigger.includeTimestamp ? `[${now.toISOString()}] ` : '';
+    const isStreamer = broadcasterId && String(trigger.userId) === String(broadcasterId);
+    const roleSuffix = isStreamer ? ' (Streamer)' : '';
     const username = trigger.username || 'viewer';
     const currentMessage = {
       role:    'user',
-      content: `${timePrefix}${username}: ${trigger.text.trim()}`,
+      content: `${timePrefix}${username}${roleSuffix}: ${trigger.text.trim()}`,
     };
 
     const messages = [systemMessage, ...trimmedHistory, currentMessage];
