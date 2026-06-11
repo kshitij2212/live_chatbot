@@ -22,7 +22,17 @@ export function createTranscriptProcessor(config) {
     const cleanText = text.trim();
     const normalizedText = cleanText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?…\s।]+$/, '').trim();
 
-    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे|जो|जाँ|प्रेवाँ|ह|हम|प्रफ़|प्रफ)$/i;
+    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे|जो|जाँ|प्रेवाँ|ह|हम|प्रफ़|प्रफ|झाल|याल|प्ष्ट|प्रुट|प्लीज|थैंक्यू|बाय|हम्म|मम|अं|अँ)$/i;
+
+    const noiseWords = new Set([
+      'झाल', 'याल', 'प्ष्ट', 'प्रुट', 'प्रफ़', 'प्रफ', 'प्रेवाँ', 'जाँ', 'ज़ाल',
+      'मं', 'अं', 'अँ', 'हम्म', 'हं', 'ू', '्', 'थैंक', 'थैंक्यू', 'थैंक्स', 'प्शट'
+    ]);
+
+    const wordsList = cleanText.toLowerCase().split(/\s+/).map(w => w.replace(/[^a-z\u0900-\u097F]/g, '')).filter(Boolean);
+    const isAllNoise = wordsList.length > 0 && wordsList.every(w => {
+      return noiseWords.has(w) || blacklist.test(w) || w.length <= 2;
+    });
 
     const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText);
 
@@ -30,7 +40,7 @@ export function createTranscriptProcessor(config) {
     const uniqueWords = new Set(words);
     const isRepeatingNoise = uniqueWords.size === 1 && words.length > 1;
 
-    if (blacklist.test(normalizedText) || isZhaal || isRepeatingNoise || normalizedText.length <= 2) {
+    if (isAllNoise || isZhaal || isRepeatingNoise || normalizedText.length <= 2) {
       log.debug({ roomId, text: cleanText, normalizedText }, 'Ignored short/filler/blacklisted transcript (likely noise/mumble)');
       return;
     }

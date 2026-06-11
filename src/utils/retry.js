@@ -30,12 +30,15 @@ export async function retry(fn, options = {}) {
         break;
       }
 
-      const base  = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
-      const delay = jitter
-        ? Math.round(base * (0.8 + Math.random() * 0.4))
-        : base;
-
       if (onRetry) onRetry(err, attempt);
+
+      let delay = err.retryAfterMs;
+      if (typeof delay !== 'number' || isNaN(delay)) {
+        const base  = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+        delay = jitter
+          ? Math.round(base * (0.8 + Math.random() * 0.4))
+          : base;
+      }
 
       log.debug(
         { attempt, maxAttempts, delayMs: delay, errName: err.name },

@@ -145,24 +145,71 @@ export function createBotRunner() {
     const blockedUserIds = [];
     const otherBotDisplayNames = [];  // display names of other bots for comment filtering
 
-    if (activePersona.includes('shivam')) {
-      config.socket.userId = Number(process.env.SOCKET_USER_ID_SHIVAM ?? '3');
-      config.livekit.botIdentity = process.env.BOT_IDENTITY_SHIVAM ?? 'shivam-bot';
-      config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_SHIVAM ?? 'Shivam';
-      blockedUserIds.push('2', 'aman', 'aman-bot', '4', 'abhishek', 'abhishek-bot');
-      otherBotDisplayNames.push('Aman', 'Aman Gupta', 'aman-bot', 'Abhishek', 'abhishek-bot');
-    } else if (activePersona.includes('aman')) {
-      config.socket.userId = Number(process.env.SOCKET_USER_ID_AMAN ?? '2');
-      config.livekit.botIdentity = process.env.BOT_IDENTITY_AMAN ?? 'aman-bot';
-      config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_AMAN ?? 'Aman';
-      blockedUserIds.push('3', 'shivam', 'shivam-bot', '4', 'abhishek', 'abhishek-bot');
-      otherBotDisplayNames.push('Shivam', 'Shivam Soni', 'shivam-bot', 'Abhishek', 'abhishek-bot');
-    } else if (activePersona.includes('abhishek')) {
-      config.socket.userId = Number(process.env.SOCKET_USER_ID_ABHISHEK ?? '4');
-      config.livekit.botIdentity = process.env.BOT_IDENTITY_ABHISHEK ?? 'abhishek-bot';
-      config.livekit.botDisplayName = process.env.BOT_DISPLAY_NAME_ABHISHEK ?? 'Abhishek';
-      blockedUserIds.push('2', 'aman', 'aman-bot', '3', 'shivam', 'shivam-bot');
-      otherBotDisplayNames.push('Aman', 'Aman Gupta', 'aman-bot', 'Shivam', 'Shivam Soni', 'shivam-bot');
+    const botDefs = [
+      {
+        key: 'aman',
+        envId: 'SOCKET_USER_ID_AMAN',
+        defaultId: '2',
+        envIdentity: 'BOT_IDENTITY_AMAN',
+        defaultIdentity: 'aman-bot',
+        envName: 'BOT_DISPLAY_NAME_AMAN',
+        defaultName: 'Aman',
+        displayNameVariations: ['Aman', 'Aman Gupta', 'gupta']
+      },
+      {
+        key: 'shivam',
+        envId: 'SOCKET_USER_ID_SHIVAM',
+        defaultId: '3',
+        envIdentity: 'BOT_IDENTITY_SHIVAM',
+        defaultIdentity: 'shivam-bot',
+        envName: 'BOT_DISPLAY_NAME_SHIVAM',
+        defaultName: 'Shivam',
+        displayNameVariations: ['Shivam', 'Shivam Soni', 'soni']
+      },
+      {
+        key: 'abhishek',
+        envId: 'SOCKET_USER_ID_ABHISHEK',
+        defaultId: '4',
+        envIdentity: 'BOT_IDENTITY_ABHISHEK',
+        defaultIdentity: 'abhishek-bot',
+        envName: 'BOT_DISPLAY_NAME_ABHISHEK',
+        defaultName: 'Abhishek',
+        displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena']
+      },
+      {
+        key: 'rahul',
+        envId: 'SOCKET_USER_ID_RAHUL',
+        defaultId: '5',
+        envIdentity: 'BOT_IDENTITY_RAHUL',
+        defaultIdentity: 'rahul-bot',
+        envName: 'BOT_DISPLAY_NAME_RAHUL',
+        defaultName: 'Rahul',
+        displayNameVariations: ['Rahul', 'Rahul Sharma', 'sharma', 'sherma', 'kirana']
+      }
+    ];
+
+    const activeDef = botDefs.find(def => activePersona.includes(def.key));
+    if (activeDef) {
+      config.socket.userId = Number(process.env[activeDef.envId] ?? activeDef.defaultId);
+      config.livekit.botIdentity = process.env[activeDef.envIdentity] ?? activeDef.defaultIdentity;
+      config.livekit.botDisplayName = process.env[activeDef.envName] ?? activeDef.defaultName;
+
+      const botApiKeyEnv = `GROQ_API_KEY_${activeDef.key.toUpperCase()}`;
+      if (process.env[botApiKeyEnv]) {
+        config.groq.apiKey = process.env[botApiKeyEnv];
+      }
+
+      for (const def of botDefs) {
+        if (def.key !== activeDef.key) {
+          const resolvedId = process.env[def.envId] ?? def.defaultId;
+          const resolvedIdentity = process.env[def.envIdentity] ?? def.defaultIdentity;
+          const resolvedName = process.env[def.envName] ?? def.defaultName;
+
+          blockedUserIds.push(String(resolvedId), resolvedIdentity);
+          const uniqueNames = new Set([resolvedName, ...def.displayNameVariations, resolvedIdentity].filter(Boolean));
+          otherBotDisplayNames.push(...uniqueNames);
+        }
+      }
     }
 
     log.info('═══════════════════════════════════════════');
@@ -229,7 +276,11 @@ export function createBotRunner() {
     llm = createLLMService({ groqAdapter, responseParser });
     log.debug('✓ LLMService');
 
-    gateCheck = createGroqGateCheck({ groqAdapter, botName: config.livekit.botDisplayName });
+    const gateBotNames = activeDef
+      ? [config.livekit.botDisplayName, config.livekit.botIdentity, ...activeDef.displayNameVariations].filter(Boolean)
+      : [config.livekit.botDisplayName, config.livekit.botIdentity].filter(Boolean);
+
+    gateCheck = createGroqGateCheck({ groqAdapter, botNames: gateBotNames });
     log.debug('✓ GroqGateCheck');
 
     joinGreeting = createJoinGreetingService({

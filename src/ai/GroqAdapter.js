@@ -6,7 +6,7 @@ const log = logger.child({ module: 'GroqAdapter' });
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
 const FALLBACK_MODELS = [
   'llama-3.3-70b-versatile',
