@@ -36,25 +36,25 @@ const config = {
   socket: {
     url:            env('SOCKET_URL',            'wss://api.dev.roxstarstudioz.com'),
     path:           env('SOCKET_PATH',           '/v1/live/socket'),
-    liveId:         envInt('SOCKET_LIVE_ID',     15314),
-    userId:         envInt('SOCKET_USER_ID',     12641),
-    broadcasterId:  envInt('SOCKET_BROADCASTER_ID', 12641),
+    liveId:         envInt('SOCKET_LIVE_ID'),
+    userId:         envInt('SOCKET_USER_ID'),
+    broadcasterId:  envInt('SOCKET_BROADCASTER_ID'),
   },
 
   livekit: {
-    url:          env('LIVEKIT_URL',          'wss://roxstar-ai-6dxds0sd.livekit.cloud'),
-    apiKey:       env('LIVEKIT_API_KEY',      'APIvKKqfdsLFxp7'),
-    apiSecret:    env('LIVEKIT_API_SECRET',   'kVx38cWUQcg7U5Qcwtj4fzlofefJyGeaBodUPKirTZ7G'),
-    roomName:     env('LIVEKIT_ROOM',         'test-room'),
-    botIdentity:  env('BOT_IDENTITY',         'zara-bot'),
-    botDisplayName: env('BOT_DISPLAY_NAME',   'Zara'),
+    url:          env('LIVEKIT_URL'),
+    apiKey:       env('LIVEKIT_API_KEY'),
+    apiSecret:    env('LIVEKIT_API_SECRET'),
+    roomName:     env('LIVEKIT_ROOM'),
+    botIdentity:  env('BOT_IDENTITY'),
+    botDisplayName: env('BOT_DISPLAY_NAME'),
 
-    botPersona:   env('BOT_PERSONA',          'zara'),
-    tokenApiUrl: env('LIVEKIT_TOKEN_API', ''),
+    botPersona:   env('BOT_PERSONA', 'aman-bot'),
+    tokenApiUrl: env('LIVEKIT_TOKEN_API'),
 
     bot: {
-      userId: env('BOT_IDENTITY', 'zara-bot'),
-      username: env('BOT_DISPLAY_NAME', 'Zara'),
+      userId: env('BOT_IDENTITY', 'aman-bot'),
+      username: env('BOT_DISPLAY_NAME', 'Aman Gupta'),
     },
     reconnect: {
       attempts:   envInt('LIVEKIT_RECONNECT_ATTEMPTS', 5),
@@ -67,8 +67,8 @@ const config = {
   },
 
   groq: {
-    apiKey:      env('GROQ_API_KEY', ''),
-    model:       env('GROQ_MODEL',    'llama-3.3-70b-versatile'),
+    apiKey:      env('GROQ_API_KEY'),
+    model:       env('GROQ_MODEL',    'llama-3.1-8b-instant'),
     maxTokens:   envInt('GROQ_MAX_TOKENS',   256),
     temperature: envFloat('GROQ_TEMPERATURE', 0.85),
     timeoutMs:   envInt('GROQ_TIMEOUT_MS',   15000),
@@ -78,22 +78,18 @@ const config = {
 
   redis: {
     url:         env('REDIS_URL', 'redis://localhost:6379'),
-
     contextTtlSeconds: envInt('REDIS_CONTEXT_TTL_SECONDS', 7200),
   },
 
   context: {
-
     windowSize: envInt('CONTEXT_WINDOW_SIZE', 20),
   },
 
   prompt: {
-
     historyTokenBudget: envInt('PROMPT_HISTORY_TOKEN_BUDGET', 1500),
   },
 
   behavior: {
-
     perUserCooldownMs:  envInt('REPLY_COOLDOWN_MS',        30000),
 
     globalCooldownMs:   envInt('GLOBAL_RATE_LIMIT_MS',     8000),
