@@ -8,6 +8,11 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
+const FALLBACK_MODELS = [
+  'llama-3.3-70b-versatile',
+  'openai/gpt-oss-120b'
+];
+
 export function createGroqAdapter(config) {
   const {
     apiKey,
@@ -23,8 +28,9 @@ export function createGroqAdapter(config) {
   if (!model?.trim())  throw new Error('GroqAdapter: model is required');
 
   async function _sendRequest(messages, options = {}) {
+    const activeModel = options.currentModel ?? model;
     const body = JSON.stringify({
-      model,
+      model:       activeModel,
       messages,
       max_tokens:  options.maxTokens ?? maxTokens,
       temperature: options.temperature ?? temperature,
@@ -60,12 +66,16 @@ export function createGroqAdapter(config) {
       try { errorBody = await response.text(); } catch {  }
 
       const status  = response.status;
-      const message = `Groq API error ${status}: ${errorBody.slice(0, 200)}`;
+      const message = `Groq API error ${status} (${activeModel}): ${errorBody.slice(0, 200)}`;
 
       if (RETRYABLE_STATUS.has(status)) {
-
         const retryable = new GroqRetryableError(message);
         retryable.status = status;
+        // Respect Groq's retry-after header if present
+        const retryAfter = response.headers?.get?.('retry-after');
+        if (retryAfter) {
+          retryable.retryAfterMs = parseFloat(retryAfter) * 1000;
+        }
         throw retryable;
       }
 
@@ -89,35 +99,58 @@ export function createGroqAdapter(config) {
       throw new Error('GroqAdapter.complete: messages must be a non-empty array');
     }
 
-    log.debug({ model, messageCount: messages.length, options }, 'Sending completion request');
-
-    const completion = await retry(
-      () => _sendRequest(messages, options),
-      {
-        maxAttempts:   maxRetries,
-        baseDelayMs:   retryBaseMs,
-
-        shouldRetry:   (err) => err instanceof GroqRetryableError,
-        onRetry:       (err, attempt) => {
-          log.warn(
-            { attempt, maxRetries, status: err.status, message: err.message },
-            'Groq request failed — retrying'
-          );
-        },
+    const modelsToTry = [model];
+    for (const m of FALLBACK_MODELS) {
+      if (m !== model) {
+        modelsToTry.push(m);
       }
-    );
+    }
 
-    log.debug(
-      {
-        model,
-        promptTokens:     completion?.usage?.prompt_tokens,
-        completionTokens: completion?.usage?.completion_tokens,
-        finishReason:     completion?.choices?.[0]?.finish_reason,
-      },
-      'Completion received'
-    );
+    let lastError;
+    for (const currentModel of modelsToTry) {
+      try {
+        log.debug({ model: currentModel, messageCount: messages.length, options }, 'Sending completion request');
 
-    return completion;
+        const completion = await retry(
+          () => _sendRequest(messages, { ...options, currentModel }),
+          {
+            maxAttempts:   maxRetries,
+            baseDelayMs:   retryBaseMs,
+
+            shouldRetry:   (err) => err instanceof GroqRetryableError,
+            onRetry:       (err, attempt) => {
+              const delayHint = err.retryAfterMs ? ` (retry-after: ${err.retryAfterMs}ms)` : '';
+              log.warn(
+                { attempt, maxRetries, status: err.status, message: err.message, model: currentModel },
+                `Groq request failed — retrying${delayHint}`
+              );
+            },
+          }
+        );
+
+        log.debug(
+          {
+            model:            currentModel,
+            promptTokens:     completion?.usage?.prompt_tokens,
+            completionTokens: completion?.usage?.completion_tokens,
+            finishReason:     completion?.choices?.[0]?.finish_reason,
+          },
+          'Completion received'
+        );
+
+        return completion;
+      } catch (err) {
+        lastError = err;
+        const isLast = currentModel === modelsToTry[modelsToTry.length - 1];
+        if (isLast) {
+          log.error({ err: err.message, failedModel: currentModel }, 'All models exhausted — giving up');
+        } else {
+          log.warn({ failedModel: currentModel }, '⚠️  Model rate-limited/failed — switching to fallback model');
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   function getModel() {
