@@ -22,7 +22,7 @@ export function createTranscriptProcessor(config) {
     const cleanText = text.trim();
     const normalizedText = cleanText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?…\s।]+$/, '').trim();
 
-    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे|जो|जाँ|प्रेवाँ|ह|हम)$/i;
+    const blacklist = /^(thank\s*you|bye|yeah|yes|ok|okay|yep|yup|nope|uh|um|uhh|umm|hmm|hm|mhm|erm|err|aa|ah|ahh|oh|ohh|eh|ee|oo|ooh|आँ|आं|हाँ|हां|हम्म|अह|ओ|ए|हे|अरे|अर्रे|जो|जाँ|प्रेवाँ|ह|हम|प्रफ़|प्रफ)$/i;
 
     const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText);
 

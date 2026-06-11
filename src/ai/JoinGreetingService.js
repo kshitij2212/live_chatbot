@@ -60,7 +60,7 @@ export function createJoinGreetingService(config) {
           }
         } else if (botPersona.includes('abhishek')) {
           if (targetUser) {
-            text = `Hey ${targetUser} Ji`;
+            text = `Hey ${targetUser}`;
           } else {
             text = 'Hey';
           }
