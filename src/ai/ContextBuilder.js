@@ -60,6 +60,16 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       return;
     }
 
+    const broadcasterId = rawContext.meta?.broadcasterId;
+    let broadcasterFacts = null;
+    if (broadcasterId) {
+      try {
+        broadcasterFacts = await contextMemory.getBroadcasterFacts(broadcasterId);
+      } catch (err) {
+        log.warn({ err, broadcasterId }, 'Failed to fetch broadcaster facts from Redis');
+      }
+    }
+
     const history = interleaveHistory(rawContext);
 
     const contextPayload = {
@@ -68,6 +78,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       history,
       persona,
       meta:       rawContext.meta,
+      broadcasterFacts,
       builtAt:    new Date().toISOString(),
     };
 
