@@ -1,4 +1,4 @@
-import { keys, limits, DEFAULT_TTL_SECONDS } from './ContextSchema.js';
+import { keys, limits, DEFAULT_TTL_SECONDS, INSIGHTS_TTL_SECONDS } from './ContextSchema.js';
 import logger from '../utils/logger.js';
 
 const log = logger.child({ module: 'ContextMemoryService' });
@@ -105,6 +105,34 @@ export function createContextMemory(redis, config = {}) {
     return { transcripts, comments, botReplies, meta };
   }
 
+  async function setInsights(roomId, insights) {
+    const key = keys.insights(getRoomKey(roomId));
+    const pairs = Object.entries(insights).map(([k, v]) => [
+      k, 
+      typeof v === 'object' ? JSON.stringify(v) : String(v)
+    ]).flat();
+    if (pairs.length === 0) return;
+    await redis
+      .pipeline()
+      .hset(key, ...pairs)
+      .expire(key, INSIGHTS_TTL_SECONDS)
+      .exec();
+    log.debug({ roomId: getRoomKey(roomId) }, 'Room insights updated');
+  }
+
+  async function getInsights(roomId) {
+    const data = await redis.hgetall(keys.insights(getRoomKey(roomId)));
+    const parsed = {};
+    for (const [k, v] of Object.entries(data)) {
+      try {
+        parsed[k] = JSON.parse(v);
+      } catch {
+        parsed[k] = v;
+      }
+    }
+    return Object.keys(parsed).length ? parsed : null;
+  }
+
   async function clearRoom(roomId) {
     await redis.del(
       keys.transcripts(getRoomKey(roomId)),
@@ -113,7 +141,7 @@ export function createContextMemory(redis, config = {}) {
       keys.meta(getRoomKey(roomId)),
       keys.cooldown(getRoomKey(roomId))
     );
-    log.debug({ roomId: getRoomKey(roomId) }, 'Room context cleared');
+    log.debug({ roomId: getRoomKey(roomId) }, 'Room context cleared (insights preserved)');
   }
 
   return {
@@ -129,5 +157,7 @@ export function createContextMemory(redis, config = {}) {
     isOnCooldown,
     getAll,
     clearRoom,
+    setInsights,
+    getInsights,
   };
 }

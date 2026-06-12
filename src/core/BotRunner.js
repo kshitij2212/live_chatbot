@@ -4,6 +4,7 @@ import 'dotenv/config';
 import bus, { Events }           from './EventBus.js';
 import logger                    from '../utils/logger.js';
 import config                    from '../../config/default.js';
+import { resolveUser, resolveActiveLiveSession } from '../utils/database.js';
 
 import { createLiveKitConnector }  from '../realtime/LiveKitConnector.js';
 import { createSocketIOConnector }   from '../realtime/SocketIOConnector.js';
@@ -84,19 +85,41 @@ export function createBotRunner() {
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
       if (room) roomRef.room = room;
       log.info({ roomId, roomName }, '🎙  Joined room');
-      context.clearRoom(roomId)
-        .then(() => {
-          return context.setMeta(roomId, {
+      
+      const broadcasterId = config.socket.broadcasterId;
+      resolveUser(broadcasterId, 'host')
+        .then(async (broadcasterDetails) => {
+          if (redis) {
+            await redis.set(`user:${broadcasterId}`, JSON.stringify(broadcasterDetails), 'EX', 3600)
+              .catch(err => log.warn({ err }, 'Failed to cache broadcaster details in Redis'));
+          }
+
+          await context.clearRoom(roomId);
+          await context.setMeta(roomId, {
+            roomName,
+            botUserId: config.livekit.botIdentity,
+            startedAt: new Date().toISOString(),
+            broadcasterGender: broadcasterDetails.gender || '',
+          });
+        })
+        .catch(async (err) => {
+          log.warn({ err }, 'Failed to resolve broadcaster details, setting default room meta');
+          await context.clearRoom(roomId);
+          await context.setMeta(roomId, {
             roomName,
             botUserId: config.livekit.botIdentity,
             startedAt: new Date().toISOString(),
           });
-        })
-        .catch((err) => log.warn({ err }, 'Failed to clear context or set room meta'));
+        });
     });
 
-    on(Events.ROOM_DISCONNECTED, ({ roomId, reason }) => {
+    on(Events.ROOM_DISCONNECTED, async ({ roomId, reason }) => {
       log.warn({ roomId, reason }, 'Left room');
+      try {
+        await compileAndSaveInsights(roomId);
+      } catch (err) {
+        log.warn({ err, roomId }, 'Failed to compile and save insights');
+      }
     });
 
     on(Events.PARTICIPANT_JOINED, ({ roomId, identity }) => {
@@ -139,6 +162,25 @@ export function createBotRunner() {
     if (arg && !arg.startsWith('-')) {
       const botId = arg.endsWith('-bot') ? arg : `${arg}-bot`;
       config.livekit.botPersona = botId;
+    }
+
+    const broadcasterId = config.socket.broadcasterId;
+    if (broadcasterId) {
+      log.info({ broadcasterId }, 'Querying active live session from DB...');
+      try {
+        const liveSession = await resolveActiveLiveSession(broadcasterId);
+        if (liveSession) {
+          log.info({ liveSession }, 'Found active live session from DB, overriding config');
+          config.socket.liveId = liveSession.liveId;
+          if (liveSession.roomName) {
+            config.livekit.roomName = liveSession.roomName;
+          }
+        } else {
+          log.warn({ broadcasterId }, 'No active live session found in DB, using values from env config');
+        }
+      } catch (dbErr) {
+        log.error({ dbErr }, 'Error querying active live session, falling back to env config');
+      }
     }
 
     const activePersona = config.livekit.botPersona;
@@ -196,7 +238,7 @@ export function createBotRunner() {
 
       const botApiKeyEnv = `GROQ_API_KEY_${activeDef.key.toUpperCase()}`;
       if (process.env[botApiKeyEnv]) {
-        config.groq.apiKey = process.env[botApiKeyEnv];
+        config.groq.apiKey = process.env[botApiKeyEnv].trim();
       }
 
       for (const def of botDefs) {
@@ -406,6 +448,57 @@ export function createBotRunner() {
     log.info('═══════════════════════════════════════════');
     log.info('  Bot is live. Listening...');
     log.info('═══════════════════════════════════════════');
+  }
+
+  async function compileAndSaveInsights(roomId) {
+    log.info({ roomId }, 'Compiling session insights...');
+    
+    // Fetch all current context details from Redis
+    const data = await context.getAll(roomId);
+    
+    const transcriptsCount = data.transcripts?.length ?? 0;
+    const commentsCount = data.comments?.length ?? 0;
+    const botRepliesCount = data.botReplies?.length ?? 0;
+    
+    // Extract unique speakers/users seen
+    const uniqueUsers = new Set();
+    if (data.transcripts) {
+      data.transcripts.forEach(t => {
+        if (t.speakerId) uniqueUsers.add(t.speakerId);
+      });
+    }
+    if (data.comments) {
+      data.comments.forEach(c => {
+        if (c.username) uniqueUsers.add(c.username);
+        else if (c.userId) uniqueUsers.add(c.userId);
+      });
+    }
+
+    // Try to extract songs mentioned / requested in transcripts
+    const requestedSongs = [];
+    if (data.transcripts) {
+      const songKeywords = ['gaana', 'song', 'ghazal', 'suna', 'sing', 'lyric'];
+      data.transcripts.forEach(t => {
+        const textLower = t.text.toLowerCase();
+        if (songKeywords.some(k => textLower.includes(k))) {
+          requestedSongs.push({ text: t.text, ts: t.ts });
+        }
+      });
+    }
+
+    const insights = {
+      totalTranscripts: transcriptsCount,
+      totalComments: commentsCount,
+      totalBotReplies: botRepliesCount,
+      uniqueUsers: Array.from(uniqueUsers),
+      requestedSongs,
+      endedAt: new Date().toISOString(),
+      startedAt: data.meta?.startedAt || new Date().toISOString(),
+      roomName: data.meta?.roomName || roomId,
+    };
+
+    await context.setInsights(roomId, insights);
+    log.info({ roomId, insights }, '✓ Session insights saved to Redis successfully');
   }
 
   async function stop(reason = 'unknown') {

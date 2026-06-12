@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import defaultBus, { Events } from '../core/EventBus.js';
 import logger from '../utils/logger.js';
+import { resolveUser } from '../utils/database.js';
 
 const log = logger.child({ module: 'SocketIOConnector' });
 
@@ -164,9 +165,12 @@ export function createSocketIOConnector(config) {
         if (payload.type === 'BROADCASTER_DETAILS') {
           const details = payload.broadcaster_details;
           if (details && details.userId && details.username && redis) {
-            log.info({ broadcasterId: details.userId, username: details.username }, 'Caching broadcaster details in Redis');
-            redis.set(`user:${details.userId}`, JSON.stringify({ username: details.username }), 'EX', 3600)
-              .catch(err => log.warn({ err }, 'Failed to cache broadcaster details in Redis'));
+            resolveUser(details.userId, details.username)
+              .then(resolved => {
+                log.info({ broadcasterId: details.userId, username: resolved.username, gender: resolved.gender }, 'Caching broadcaster details in Redis');
+                redis.set(`user:${details.userId}`, JSON.stringify(resolved), 'EX', 3600)
+                  .catch(err => log.warn({ err }, 'Failed to cache broadcaster details in Redis'));
+              });
           }
           return;
         }
@@ -180,6 +184,17 @@ export function createSocketIOConnector(config) {
         if (String(senderId) === String(userId)) {
           log.debug('Skipping comment sent by bot itself');
           return;
+        }
+
+        if (senderId && redis) {
+          const senderName = payload.user_details?.username || payload.user_details?.name;
+          if (senderName) {
+            resolveUser(senderId, senderName)
+              .then(resolved => {
+                redis.set(`user:${senderId}`, JSON.stringify(resolved), 'EX', 3600)
+                  .catch(err => log.warn({ err }, 'Failed to cache sender details in Redis'));
+              });
+          }
         }
 
         log.info(

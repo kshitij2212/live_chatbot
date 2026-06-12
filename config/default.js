@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 function env(key, fallback) {
   const val = process.env[key];
   if (val !== undefined && val.trim() !== '') return val.trim();
@@ -36,21 +38,21 @@ const config = {
   socket: {
     url:            env('SOCKET_URL',            'wss://api.dev.roxstarstudioz.com'),
     path:           env('SOCKET_PATH',           '/v1/live/socket'),
-    liveId:         envInt('SOCKET_LIVE_ID'),
-    userId:         envInt('SOCKET_USER_ID'),
-    broadcasterId:  envInt('SOCKET_BROADCASTER_ID'),
+    liveId:         envInt('SOCKET_LIVE_ID', 0),
+    userId:         envInt('SOCKET_USER_ID', 0),
+    broadcasterId:  envInt('SOCKET_BROADCASTER_ID', 0),
   },
 
   livekit: {
-    url:          env('LIVEKIT_URL'),
-    apiKey:       env('LIVEKIT_API_KEY'),
-    apiSecret:    env('LIVEKIT_API_SECRET'),
-    roomName:     env('LIVEKIT_ROOM'),
-    botIdentity:  env('BOT_IDENTITY'),
-    botDisplayName: env('BOT_DISPLAY_NAME'),
+    url:          env('LIVEKIT_URL', 'wss://localhost'),
+    apiKey:       env('LIVEKIT_API_KEY', 'default_key'),
+    apiSecret:    env('LIVEKIT_API_SECRET', 'default_secret'),
+    roomName:     env('LIVEKIT_ROOM', 'default_room'),
+    botIdentity:  env('BOT_IDENTITY', 'aman-bot'),
+    botDisplayName: env('BOT_DISPLAY_NAME', 'Aman'),
 
     botPersona:   env('BOT_PERSONA', 'aman-bot'),
-    tokenApiUrl: env('LIVEKIT_TOKEN_API'),
+    tokenApiUrl: env('LIVEKIT_TOKEN_API', null),
 
     bot: {
       userId: env('BOT_IDENTITY', 'aman-bot'),
@@ -67,7 +69,7 @@ const config = {
   },
 
   groq: {
-    apiKey:      env('GROQ_API_KEY'),
+    apiKey:      env('GROQ_API_KEY', 'default_groq_key'),
     model:       env('GROQ_MODEL',    'llama-3.1-8b-instant'),
     maxTokens:   envInt('GROQ_MAX_TOKENS',   256),
     temperature: envFloat('GROQ_TEMPERATURE', 0.85),
