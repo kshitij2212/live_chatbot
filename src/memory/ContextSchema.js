@@ -1,10 +1,10 @@
 export const keys = {
-  transcripts: (roomId) => `context:${roomId}:transcripts`,
-  comments:    (roomId) => `context:${roomId}:comments`,
-  botReplies:  (roomId) => `context:${roomId}:bot_replies`,
-  meta:        (roomId) => `context:${roomId}:meta`,
-  cooldown:    (roomId) => `context:${roomId}:cooldown`,
-  insights:    (roomId) => `context:${roomId}:insights`,
+  transcripts: (botId, roomId) => `bot:${botId}:context:${roomId}:transcripts`,
+  comments:    (botId, roomId) => `bot:${botId}:context:${roomId}:comments`,
+  botReplies:  (botId, roomId) => `bot:${botId}:context:${roomId}:bot_replies`,
+  meta:        (botId, roomId) => `bot:${botId}:context:${roomId}:meta`,
+  cooldown:    (botId, roomId) => `bot:${botId}:context:${roomId}:cooldown`,
+  insights:    (botId, roomId) => `bot:${botId}:context:${roomId}:insights`,
 };
 
 export const limits = {
