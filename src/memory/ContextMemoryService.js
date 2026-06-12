@@ -61,7 +61,7 @@ export function createContextMemory(redis, config = {}) {
   async function addBotReply(roomId, text, trigger = null) {
     const entry = { text, ts: Date.now() };
     if (trigger) {
-      entry.promptText = typeof trigger === 'string' ? trigger : trigger.text;
+      entry.promptText = typeof trigger === 'string' ? trigger : (trigger.text || trigger.prompt || '');
       entry.promptUser = trigger.username || trigger.userId || 'system';
     }
     await pushToList(
