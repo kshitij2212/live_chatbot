@@ -25,7 +25,7 @@ export function createReplyProcessor(config) {
       //   return;
       // }
 
-      await context.addBotReply(roomId, text);
+      await context.addBotReply(roomId, text, trigger);
 
       bus.emit(Events.REPLY_SEND, { roomId, trigger, text, usage });
 

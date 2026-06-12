@@ -27,6 +27,8 @@ const EMOJI_ONLY_RE = /^[\p{Emoji}\p{P}\s]+$/u;
 
 const BOT_USERNAME_RE = /^\d+$|bot$|_bot$|-bot$/i;
 
+const QUESTION_ABOUT_OTHER_RE = /(?:ko\s+)?(?:jaante|jante|jaanta|janta|kaun|kon|who|know|about)/i;
+
 const rateLimitMap = new Map();
 
 function isRateLimited(userId, windowMs, maxMessages) {
@@ -73,8 +75,12 @@ export function createCommentFilter(config = {}) {
       if (mentionsOther) {
         const mentionsSelf = myBotNameRegexes.some(re => re.test(text));
         if (!mentionsSelf) {
-          log.debug({ text }, 'Comment names another bot — rejecting');
-          return 'directed_at_other';
+          if (QUESTION_ABOUT_OTHER_RE.test(text)) {
+            log.debug({ text }, 'Comment mentions another bot but is a question — allowing');
+          } else {
+            log.debug({ text }, 'Comment names another bot — rejecting');
+            return 'directed_at_other';
+          }
         }
       }
     }
@@ -83,7 +89,11 @@ export function createCommentFilter(config = {}) {
     if (cfg.botNames && cfg.botNames.length > 0) {
       const { target } = classifyTarget(text, cfg.botNames);
       if (target === 'other_person') {
-        return 'directed_at_other';
+        if (QUESTION_ABOUT_OTHER_RE.test(text)) {
+          log.debug({ text }, 'Comment target is other_person but is a question — allowing');
+        } else {
+          return 'directed_at_other';
+        }
       }
     }
 
