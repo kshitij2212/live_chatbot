@@ -4,7 +4,7 @@ import logger          from '../utils/logger.js';
 const log = logger.child({ module: 'JoinGreetingService' });
 
 export function createJoinGreetingService(config) {
-  const { redis, groqAdapter, personaMemory, botPersona } = config;
+  const { redis, groqAdapter, personaMemory, botPersona, connectorRef, useSocketIO } = config;
 
   if (!groqAdapter)    throw new Error('JoinGreetingService: groqAdapter is required');
   if (!personaMemory)  throw new Error('JoinGreetingService: personaMemory is required');
@@ -14,6 +14,10 @@ export function createJoinGreetingService(config) {
   let isGreetingPending = false;
 
   async function onRoomConnected({ roomId, room }) {
+    if (useSocketIO && (!connectorRef?.connector || !connectorRef.connector.isConnected())) {
+      log.debug({ roomId }, 'JoinGreetingService: Socket.io is enabled but not connected yet. Skipping greeting for now.');
+      return;
+    }
     if (isGreetingPending) {
       log.debug({ roomId }, 'Join greeting already pending, skipping');
       return;

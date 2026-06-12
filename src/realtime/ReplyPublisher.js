@@ -73,7 +73,19 @@ export function createReplyPublisher(config) {
   }
 
   async function onReplySend({ roomId, trigger, text, usage }) {
-    if (sendMode !== 'socket_io' && (!roomRef || !roomRef.room)) {
+    if (sendMode === 'socket_io') {
+      if (!connectorRef || !connectorRef.connector || !connectorRef.connector.isConnected()) {
+        log.warn({ roomId }, 'Cannot send reply — Socket.io is not connected');
+        stats.failed++;
+        bus.emit(Events.REPLY_FAILED, {
+          roomId,
+          trigger,
+          errName:    'SocketNotConnected',
+          errMessage: 'ReplyPublisher: socket is not connected',
+        });
+        return;
+      }
+    } else if (!roomRef || !roomRef.room) {
       log.warn({ roomId }, 'Cannot send reply — no active room instance');
       stats.failed++;
       bus.emit(Events.REPLY_FAILED, {
