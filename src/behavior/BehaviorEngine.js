@@ -11,8 +11,9 @@ export class BehaviorEngine {
     cooldownSeconds      = 10,
     baseReplyProbability = 0.4,
     maxRepliesPerMinute  = 6,
+    botId                = 'default-bot',
   } = {}) {
-    this.cooldown            = new CooldownManager(redis, { cooldownSeconds });
+    this.cooldown            = new CooldownManager(redis, { cooldownSeconds, botId });
     this.baseProb            = baseReplyProbability;
     this.maxRepliesPerMinute = maxRepliesPerMinute;
   }
