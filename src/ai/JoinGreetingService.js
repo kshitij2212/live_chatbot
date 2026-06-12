@@ -4,7 +4,7 @@ import logger          from '../utils/logger.js';
 const log = logger.child({ module: 'JoinGreetingService' });
 
 export function createJoinGreetingService(config) {
-  const { redis, groqAdapter, personaMemory, botPersona, connectorRef, useSocketIO } = config;
+  const { redis, groqAdapter, personaMemory, botPersona, connectorRef, useSocketIO, broadcasterId } = config;
 
   if (!groqAdapter)    throw new Error('JoinGreetingService: groqAdapter is required');
   if (!personaMemory)  throw new Error('JoinGreetingService: personaMemory is required');
@@ -52,6 +52,14 @@ export function createJoinGreetingService(config) {
           text = "Hey I'm back";
         } else {
           let targetUser = '';
+          
+          log.info({
+            hasRoom: !!room,
+            remoteParticipantsKeys: room && room.remoteParticipants ? Array.from(room.remoteParticipants.keys()) : [],
+            remoteParticipantsCount: room && room.remoteParticipants ? room.remoteParticipants.size : 0,
+            useSocketIO,
+            broadcasterId,
+          }, 'Debugging JoinGreetingService remote participants');
 
           if (room && room.remoteParticipants) {
             for (const [, participant] of room.remoteParticipants) {
@@ -77,25 +85,37 @@ export function createJoinGreetingService(config) {
                 break;
               }
             }
+          } else if (useSocketIO && broadcasterId && redis) {
+            try {
+              const cachedUser = await redis.get(`user:${broadcasterId}`);
+              if (cachedUser) {
+                const userObj = JSON.parse(cachedUser);
+                if (userObj && userObj.username) {
+                  targetUser = userObj.username.trim().split(' ')[0];
+                }
+              }
+            } catch (err) {
+              log.warn({ err, broadcasterId }, 'Failed to fetch broadcaster details from Redis cache for socket.io greeting');
+            }
           }
-
+          
           if (botPersona.includes('shivam')) {
             if (targetUser) {
-              text = `Hello ${targetUser} Ji`;
+              text = `Hello Ji`;
             } else {
               text = 'Hello';
             }
           } else if (botPersona.includes('abhishek')) {
             if (targetUser) {
-              text = `Hey ${targetUser}`;
+              text = `Hey`;
             } else {
               text = 'Hey';
             }
           } else {
             if (targetUser) {
-              text = `Namaste ${targetUser} Ji`;
+              text = `Hello Ji`;
             } else {
-              text = 'Namaste, kaise ho aap?';
+              text = 'Hello, kaise ho aap?';
             }
           }
         }

@@ -1,42 +1,31 @@
-import { readFileSync, readdirSync } from 'fs';
-import { resolve, join } from 'path';
 import logger from '../utils/logger.js';
 
 const log = logger.child({ module: 'PersonaMemoryService' });
 
-const PERSONAS_DIR = resolve(process.cwd(), 'config', 'personas');
-
-export function createPersonaMemory() {
+export function createPersonaMemory(mongoPersonaService = null) {
 
   const cache = new Map();
 
-  function load(botId) {
-    const filePath = join(PERSONAS_DIR, `${botId}.json`);
+  async function load(botId) {
+    if (!mongoPersonaService) {
+      throw new Error('PersonaMemoryService: mongoPersonaService is required when running without local fallback');
+    }
 
-    let raw;
     try {
-      raw = readFileSync(filePath, 'utf-8');
+      const persona = await mongoPersonaService.getPersona(botId);
+      if (persona) {
+        // Remove internal mongodb _id field
+        delete persona._id;
+        validatePersona(persona, botId);
+        log.info({ botId, displayName: persona.displayName }, 'Persona loaded from MongoDB');
+        return persona;
+      }
     } catch (err) {
-      throw new Error(`PersonaMemory: persona file not found for botId "${botId}" at ${filePath}`);
+      log.error({ err, botId }, 'Failed to fetch persona from MongoDB');
+      throw err;
     }
 
-    let persona;
-    try {
-      persona = JSON.parse(raw);
-    } catch (err) {
-      throw new Error(`PersonaMemory: failed to parse persona JSON for botId "${botId}": ${err.message}`);
-    }
-
-    if (persona.botId !== botId) {
-      throw new Error(
-        `PersonaMemory: botId mismatch in ${filePath} — file says "${persona.botId}", expected "${botId}"`
-      );
-    }
-
-    validatePersona(persona, botId);
-
-    log.info({ botId, displayName: persona.displayName }, 'Persona loaded');
-    return persona;
+    throw new Error(`PersonaMemory: persona not found in MongoDB for botId "${botId}"`);
   }
 
   function validatePersona(persona, botId) {
@@ -54,28 +43,17 @@ export function createPersonaMemory() {
     }
   }
 
-  function getPersona(botId) {
+  async function getPersona(botId) {
     if (!cache.has(botId)) {
-      const persona = load(botId);
+      const persona = await load(botId);
       cache.set(botId, persona);
     }
     return cache.get(botId);
   }
 
-  function preload(botId) {
-    getPersona(botId);
+  async function preload(botId) {
+    await getPersona(botId);
   }
 
-  function listAvailable() {
-    try {
-      return readdirSync(PERSONAS_DIR)
-        .filter((f) => f.endsWith('.json'))
-        .map((f) => f.replace('.json', ''));
-    } catch (err) {
-      log.error({ err }, 'PersonaMemory: failed to list personas');
-      return [];
-    }
-  }
-
-  return { getPersona, preload, listAvailable };
+  return { getPersona, preload };
 }

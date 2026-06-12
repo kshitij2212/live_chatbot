@@ -121,7 +121,7 @@ export function createRoomEventEmitter(room, config) {
 
   function onConnected() {
     log.info({ roomId }, 'Room connected');
-    bus.emit(Events.ROOM_CONNECTED, { roomId, roomName: room.name });
+    bus.emit(Events.ROOM_CONNECTED, { roomId, roomName: room.name, room });
 
     for (const [, participant] of room.remoteParticipants) {
       log.debug({ identity: participant.identity }, 'Wiring pre-existing participant');

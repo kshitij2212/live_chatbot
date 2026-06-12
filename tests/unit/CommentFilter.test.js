@@ -18,6 +18,7 @@ describe('CommentFilter', () => {
       maxLength: 500,
       otherBotNames: ['Shivam', 'Abhishek'],
       botNames: ['Aman'],
+      blocklistPhrases: ['matlab ?'],
     });
   });
 
@@ -54,5 +55,20 @@ describe('CommentFilter', () => {
 
     expect(acceptedComments.length).toBe(1);
     expect(rejectedComments.length).toBe(0);
+  });
+
+  test('rejects comments containing blocklisted phrases', async () => {
+    bus.emit(Events.COMMENT_RECEIVED, {
+      roomId: 'room1',
+      userId: 'user1',
+      username: 'Alice',
+      text: 'What does this matlab ?',
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(rejectedComments.length).toBe(1);
+    expect(rejectedComments[0].reason).toBe('blocklist_phrase');
+    expect(acceptedComments.length).toBe(0);
   });
 });

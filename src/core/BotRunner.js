@@ -1,5 +1,6 @@
 import '../utils/patchLiveKit.js';
 import 'dotenv/config';
+import mongoose from 'mongoose';
 
 import bus, { Events }                           from './EventBus.js';
 import logger                                    from '../utils/logger.js';
@@ -10,6 +11,9 @@ import { createLiveKitConnector }    from '../realtime/LiveKitConnector.js';
 import { createSocketIOConnector }   from '../realtime/SocketIOConnector.js';
 import { createReplyPublisher }      from '../realtime/ReplyPublisher.js';
 import { createRedisClient }         from '../memory/RedisClient.js';
+import { createMongoClient }         from '../memory/MongoClient.js';
+import { createMongoConversationService } from '../memory/MongoConversationService.js';
+import { createMongoPersonaService }      from '../memory/MongoPersonaService.js';
 import { createContextMemory }       from '../memory/ContextMemoryService.js';
 import { createPersonaMemory }       from '../memory/PersonaMemoryService.js';
 import { createBehaviorEngine }      from '../behavior/BehaviorEngine.js';
@@ -38,28 +42,28 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const BOT_DEFS = [
   {
     key: 'aman',
-    envId: 'SOCKET_USER_ID_AMAN',       defaultId: '2',
+    envId: 'SOCKET_USER_ID_AMAN',       defaultId: '4638',
     envIdentity: 'BOT_IDENTITY_AMAN',   defaultIdentity: 'aman-bot',
     envName: 'BOT_DISPLAY_NAME_AMAN',   defaultName: 'Aman',
     displayNameVariations: ['Aman', 'Aman Gupta', 'gupta', 'aman', 'अमन', 'आमन', 'अमं', 'अमान', 'हमन'],
   },
   {
     key: 'shivam',
-    envId: 'SOCKET_USER_ID_SHIVAM',     defaultId: '3',
+    envId: 'SOCKET_USER_ID_SHIVAM',     defaultId: '4639',
     envIdentity: 'BOT_IDENTITY_SHIVAM', defaultIdentity: 'shivam-bot',
     envName: 'BOT_DISPLAY_NAME_SHIVAM', defaultName: 'Shivam',
     displayNameVariations: ['Shivam', 'Shivam Soni', 'soni', 'shivam', 'शिवम', 'शवाम', 'शीवम', 'शवंम', 'शेबंबाई', 'शेबं', 'शिबम', 'शिवं', 'севम', 'सेवम', 'शेबम', 'शिवन', 'शिवा', 'शे बाम', 'शेबाम'],
   },
   {
     key: 'abhishek',
-    envId: 'SOCKET_USER_ID_ABHISHEK',     defaultId: '4',
+    envId: 'SOCKET_USER_ID_ABHISHEK',     defaultId: '4640',
     envIdentity: 'BOT_IDENTITY_ABHISHEK', defaultIdentity: 'abhishek-bot',
     envName: 'BOT_DISPLAY_NAME_ABHISHEK', defaultName: 'Abhishek',
     displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena', 'abhishek', 'अभिषेक', 'अभिशेक', 'अभि', 'अभिशेख', 'अब्बी', 'अबे शेख', 'अबे सेख', 'अब्बी शेख'],
   },
   {
     key: 'rahul',
-    envId: 'SOCKET_USER_ID_RAHUL',     defaultId: '5',
+    envId: 'SOCKET_USER_ID_RAHUL',     defaultId: '4641',
     envIdentity: 'BOT_IDENTITY_RAHUL', defaultIdentity: 'rahul-bot',
     envName: 'BOT_DISPLAY_NAME_RAHUL', defaultName: 'Rahul',
     displayNameVariations: ['Rahul', 'Rahul Sharma', 'sharma', 'sherma', 'kirana', 'rahul', 'राहुल', 'राउल', 'राऊल', 'राहू', 'राहूल'],
@@ -68,15 +72,15 @@ const BOT_DEFS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function resolveActiveDef(persona) {
-  return BOT_DEFS.find((def) => persona.includes(def.key)) ?? null;
+function resolveActiveDef(persona, botDefs) {
+  return botDefs.find((def) => persona.includes(def.key)) ?? null;
 }
 
-function buildBlockedLists(activeDef) {
+function buildBlockedLists(activeDef, botDefs) {
   const blockedUserIds = [];
   const otherBotDisplayNames = [];
 
-  for (const def of BOT_DEFS) {
+  for (const def of botDefs) {
     if (def.key === activeDef?.key) continue;
     blockedUserIds.push(
       String(process.env[def.envId] ?? def.defaultId),
@@ -116,6 +120,10 @@ export function createBotRunner() {
   let socketIOConnector   = null;
   let replyPublisher      = null;
   let redis               = null;
+  let redisSub            = null;
+  let mongoClient         = null;
+  let mongoConversationService = null;
+  let mongoPersonaService = null;
   let context             = null;
   let persona             = null;
   let behavior            = null;
@@ -134,6 +142,7 @@ export function createBotRunner() {
   let commentProcessor    = null;
   let replyProcessor      = null;
   let isShuttingDown      = false;
+  let heartbeatInterval   = null;
 
   const roomRef      = { room: null };
   const connectorRef = { connector: null };
@@ -149,12 +158,37 @@ export function createBotRunner() {
     listeners.length = 0;
   }
 
+  function startHeartbeat(roomId) {
+    stopHeartbeat();
+    heartbeatInterval = setInterval(async () => {
+      try {
+        if (redis) {
+          const heartbeatKey = `bot:${config.livekit.botPersona}:room:${roomId}:heartbeat`;
+          await redis.set(heartbeatKey, '1', 'EX', 15);
+        }
+      } catch (err) {
+        log.warn({ err }, 'Failed to send heartbeat to Redis');
+      }
+    }, 10000);
+    if (redis) {
+      redis.set(`bot:${config.livekit.botPersona}:room:${roomId}:heartbeat`, '1', 'EX', 15).catch(() => {});
+    }
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+
   // ─── Event wiring ───────────────────────────────────────────────────────────
 
   function wireEvents() {
     on(Events.ROOM_CONNECTED, ({ roomId, roomName, room }) => {
       if (room) roomRef.room = room;
       log.info({ roomId, roomName }, '🎙  Joined room');
+      startHeartbeat(roomId);
 
       const broadcasterId = config.socket.broadcasterId;
 
@@ -165,13 +199,16 @@ export function createBotRunner() {
         })
         .catch(async (err) => {
           log.warn({ err }, 'Failed to resolve broadcaster details — using defaults');
-          await cacheBroadcasterAndRoomData(roomId, roomName, broadcasterId, null);
-          await initRoomContext(roomId, roomName, broadcasterId, null);
+          const fallbackDetails = { username: 'host', gender: '' };
+
+          await cacheBroadcasterAndRoomData(roomId, roomName, broadcasterId, fallbackDetails);
+          await initRoomContext(roomId, roomName, broadcasterId, fallbackDetails);
         });
     });
 
     on(Events.ROOM_DISCONNECTED, async ({ roomId, reason }) => {
       log.warn({ roomId, reason }, 'Left room');
+      stopHeartbeat();
       await removeBotRoomData(roomId);
       await compileAndSaveInsights(roomId).catch((err) =>
         log.warn({ err, roomId }, 'Failed to compile session insights'),
@@ -186,8 +223,20 @@ export function createBotRunner() {
       log.info({ roomId, identity }, '👤 Participant left');
     });
 
-    on(Events.REPLY_SENT, ({ roomId, text }) => {
+    on(Events.REPLY_SENT, ({ roomId, trigger, text }) => {
       log.info({ roomId, text }, '✅ Reply sent');
+      if (mongoConversationService) {
+        const question = typeof trigger === 'string' ? trigger : (trigger?.text || trigger?.prompt || '');
+        const questionUser = trigger?.username || trigger?.userId || 'system';
+        const botId = config.livekit.botPersona;
+        mongoConversationService.saveQA({
+          botId,
+          roomId,
+          question,
+          questionUser,
+          answer: text,
+        }).catch((err) => log.error({ err }, 'Failed to save QA to MongoDB'));
+      }
     });
 
     on(Events.REPLY_FAILED, ({ roomId, trigger, errName, errMessage }) => {
@@ -250,13 +299,47 @@ export function createBotRunner() {
       botUserId:           config.livekit.botIdentity,
       startedAt:           new Date().toISOString(),
       broadcasterId:       String(broadcasterId),
-      broadcasterGender:   broadcasterDetails?.gender ?? '',
+      broadcasterGender:   broadcasterDetails?.gender || '',
+      broadcasterName:     broadcasterDetails?.username || 'host',
     });
   }
 
   // ─── Start ───────────────────────────────────────────────────────────────────
 
   async function start() {
+    log.info('Connecting to MongoDB...');
+    try {
+      mongoClient = await createMongoClient(config.mongo.url);
+      mongoConversationService = createMongoConversationService(mongoClient);
+      
+      await mongoose.connect(config.mongo.url);
+      mongoPersonaService = createMongoPersonaService();
+      
+      log.info('✓ MongoDB connected');
+    } catch (err) {
+      log.error({ err }, 'Failed to connect to MongoDB, proceeding without it');
+    }
+
+    log.info('Connecting to Redis...');
+    redis = await createRedisClient(config.redis.url);
+    log.info({ url: config.redis.url }, '✓ Redis connected');
+
+    log.info('Connecting Redis Sub client...');
+    redisSub = await createRedisClient(config.redis.url);
+    log.info('✓ Redis Sub connected');
+
+    // Load dynamic bot definitions from MongoDB, merge with static fallback BOT_DEFS
+    let dbDefs = [];
+    if (mongoPersonaService) {
+      dbDefs = await mongoPersonaService.getBotDefinitions();
+    }
+    const botDefs = [...BOT_DEFS];
+    for (const dbDef of dbDefs) {
+      if (!botDefs.some(def => def.key === dbDef.key)) {
+        botDefs.push(dbDef);
+      }
+    }
+
     // Resolve active persona from CLI arg
     const arg = process.argv[2];
     if (arg && !arg.startsWith('-')) {
@@ -264,8 +347,8 @@ export function createBotRunner() {
     }
 
     const activePersona = config.livekit.botPersona;
-    const activeDef     = resolveActiveDef(activePersona);
-    const { blockedUserIds, otherBotDisplayNames } = buildBlockedLists(activeDef);
+    const activeDef     = resolveActiveDef(activePersona, botDefs);
+    const { blockedUserIds, otherBotDisplayNames } = buildBlockedLists(activeDef, botDefs);
 
     // Apply per-bot overrides from env
     if (activeDef) {
@@ -303,13 +386,9 @@ export function createBotRunner() {
       'Config loaded',
     );
 
-    log.info('Connecting to Redis...');
-    redis = await createRedisClient(config.redis.url);
-    log.info({ url: config.redis.url }, '✓ Redis connected');
-
     log.info('Instantiating services...');
 
-    persona = createPersonaMemory();
+    persona = createPersonaMemory(mongoPersonaService);
     log.debug('✓ PersonaMemory');
 
     context = createContextMemory(redis, {
@@ -381,6 +460,7 @@ export function createBotRunner() {
       botPersona:    useLiveKit ? config.livekit.botPersona : fallbackBotId,
       connectorRef,
       useSocketIO,
+      broadcasterId: config.socket.broadcasterId,
     });
     joinGreeting.init();
     log.debug('✓ JoinGreetingService');
@@ -393,6 +473,7 @@ export function createBotRunner() {
       maxLength:            config.commentFilter.maxLength,
       rateLimitWindowMs:    config.commentFilter.rateLimitWindowMs,
       rateLimitMaxMessages: config.commentFilter.rateLimitMaxMessages,
+      blocklistPhrases:     config.commentFilter.blocklistPhrases,
       blockedUserIds,
       botNames:             [config.livekit.botDisplayName, config.livekit.botIdentity].filter(Boolean),
       otherBotNames:        otherBotDisplayNames,
@@ -403,7 +484,7 @@ export function createBotRunner() {
     log.debug('✓ CommentListener');
 
     if (useLiveKit) {
-      const audioStage = Number(process.env.AUDIO_PIPELINE_STAGE ?? '0');
+      const audioStage = 4;
       audioPipeline = createAudioPipeline({
         stage:      audioStage,
         groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
@@ -469,9 +550,42 @@ export function createBotRunner() {
     commentProcessor.init();
     log.debug('✓ CommentProcessor');
 
-    replyProcessor = createReplyProcessor({ context, moderation });
+    replyProcessor = createReplyProcessor({
+      context,
+      moderation,
+      botId: config.livekit.botPersona,
+      redis,
+    });
     replyProcessor.init();
     log.debug('✓ ReplyProcessor');
+
+    // Subscribe to Redis approved events for moderation
+    redisSub.subscribe('moderation:channel', (err) => {
+      if (err) {
+        log.error({ err }, 'Failed to subscribe to Redis moderation:channel');
+      } else {
+        log.info('Subscribed to Redis moderation:channel');
+      }
+    });
+
+    redisSub.on('message', (channel, message) => {
+      if (channel === 'moderation:channel') {
+        try {
+          const parsed = JSON.parse(message);
+          if (parsed.type === 'approved' && parsed.botId === config.livekit.botPersona) {
+            log.info({ queueId: parsed.queueId, text: parsed.text }, 'Received approval message via Redis');
+            replyProcessor.publishApprovedReply({
+              text: parsed.text,
+              trigger: parsed.trigger,
+              usage: parsed.usage,
+              roomId: parsed.roomId,
+            }).catch((err) => log.error({ err }, 'Failed to process approved reply'));
+          }
+        } catch (err) {
+          log.error({ err, message }, 'Failed to parse/process Redis subscription message');
+        }
+      }
+    });
 
     log.info('Wiring EventBus...');
     wireEvents();
@@ -587,6 +701,7 @@ Example: {"location":"Gujarat","hobbies":"singing"}`,
     isShuttingDown = true;
 
     log.info({ reason }, 'Shutting down bot...');
+    stopHeartbeat();
     unwireEvents();
 
     llm?.destroy();
@@ -603,9 +718,26 @@ Example: {"location":"Gujarat","hobbies":"singing"}`,
     await livekitConnector?.disconnect().catch((err) => log.warn({ err }, 'LiveKit disconnect error'));
     await socketIOConnector?.disconnect().catch((err) => log.warn({ err }, 'SocketIO disconnect error'));
 
+    if (redisSub?.quit) {
+      await redisSub.quit().catch((err) => log.warn({ err }, 'Redis Sub quit error'));
+      log.info('Redis Sub disconnected');
+    }
+
     if (redis?.quit) {
       await redis.quit().catch((err) => log.warn({ err }, 'Redis quit error'));
       log.info('Redis disconnected');
+    }
+
+    if (mongoClient) {
+      await mongoClient.close().catch((err) => log.warn({ err }, 'MongoClient close error'));
+      log.info('MongoDB disconnected');
+    }
+
+    try {
+      await mongoose.connection.close();
+      log.info('Mongoose disconnected');
+    } catch (err) {
+      log.warn({ err }, 'Mongoose disconnect error');
     }
 
     roomRef.room = null;

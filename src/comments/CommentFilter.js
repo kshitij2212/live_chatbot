@@ -68,6 +68,12 @@ export function createCommentFilter(config = {}) {
       return 'blocked_user';
     }
 
+    for (const phrase of cfg.blocklistPhrases) {
+      if (lowerText.includes(phrase.toLowerCase())) {
+        return 'blocklist_phrase';
+      }
+    }
+
     // 1. Check if comment explicitly names another bot/person but NOT this bot
     //    This handles cases like "Abhishek, I liked your choice" or "Hello Shivam"
     if (otherBotNameRegexes.length > 0) {
@@ -115,12 +121,6 @@ export function createCommentFilter(config = {}) {
 
     if (BOT_USERNAME_RE.test(username)) {
       return 'bot_username';
-    }
-
-    for (const phrase of cfg.blocklistPhrases) {
-      if (lowerText.includes(phrase.toLowerCase())) {
-        return 'blocklist_phrase';
-      }
     }
 
     if (isRateLimited(userId, cfg.rateLimitWindowMs, cfg.rateLimitMaxMessages)) {

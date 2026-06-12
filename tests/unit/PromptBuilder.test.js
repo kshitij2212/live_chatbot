@@ -88,7 +88,7 @@ describe('PromptBuilder', () => {
     expect(messages[0].content).toContain('Do NOT welcome them to the stream');
   });
 
-  test('buildSystemPrompt maps gender-aware addressing (female -> didi)', () => {
+  test('buildSystemPrompt maps gender-aware addressing (female -> ma\'am)', () => {
     const builder = createPromptBuilder();
     const femalePersona = {
       ...persona,
@@ -98,9 +98,9 @@ describe('PromptBuilder', () => {
       }
     };
     const systemPrompt = builder.buildSystemPrompt(femalePersona, { broadcasterGender: 'female' });
-    expect(systemPrompt).toContain('kaise ho didi');
-    expect(systemPrompt).toContain('sahi hai didi');
-    expect(systemPrompt).toContain('didi mujhe in sab chizon mein interest nahi hai');
+    expect(systemPrompt).toContain('kaise ho ma\'am');
+    expect(systemPrompt).toContain('sahi hai ma\'am');
+    expect(systemPrompt).toContain('ma\'am mujhe in sab chizon mein interest nahi hai');
   });
 
   test('build pre-processes and injects lyricsLine into trigger', () => {
