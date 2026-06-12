@@ -17,7 +17,17 @@ export function createReplyProcessor(config) {
     if (!text?.trim()) return;
 
     try {
-      const cleanText = text.trim();
+      let cleanText = text.trim();
+
+      // Get room metadata to check broadcaster gender
+      const roomMeta = await context.getMeta(roomId);
+      const broadcasterGender = roomMeta?.broadcasterGender?.toLowerCase() || '';
+
+      // If broadcaster is female, append "ma'am" if not already present
+      if (broadcasterGender === 'female' && !cleanText.toLowerCase().includes('ma\'am')) {
+        cleanText = cleanText + ', ma\'am';
+      }
+
       const RejectQueue = getRejectQueueModel(botId);
 
       // Check if response text is blacklisted (case-insensitive exact match)

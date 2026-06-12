@@ -700,6 +700,16 @@ body {
   background-color: rgba(139, 92, 246, 0.25);
 }
 
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.btn-icon {
+  gap: 0.5rem;
+}
+
 /* CARDS AND SIDEBAR */
 .card {
   background-color: var(--bg-surface);
@@ -1003,10 +1013,12 @@ body {
 .edit-action-buttons {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .edit-action-buttons .btn {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
+  min-width: 70px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
 }

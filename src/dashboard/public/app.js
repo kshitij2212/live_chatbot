@@ -535,8 +535,10 @@ function startEditingAnswer(answerElement, queueId) {
   editContainer.innerHTML = `
     <textarea class="edit-answer-input">${escapeHtml(currentAnswer)}</textarea>
     <div class="edit-action-buttons">
-      <button class="btn btn-secondary" onclick="cancelEditingAnswer('${queueId}')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveInlineEdit('${queueId}')">💾 Save</button>
+      <button class="btn btn-success btn-sm" onclick="performActionWithEdit('${queueId}', 'approve')">✈️ Send</button>
+      <button class="btn btn-danger btn-sm" onclick="performActionWithEdit('${queueId}', 'reject')">❌ Reject</button>
+      <button class="btn btn-secondary btn-sm" onclick="performActionWithEdit('${queueId}', 'hold')">⏳ Hold</button>
+      <button class="btn btn-dark btn-sm" onclick="cancelEditingAnswer('${queueId}')">Cancel</button>
     </div>
   `;
 
@@ -562,7 +564,7 @@ function cancelEditingAnswer(queueId) {
   currentEditingItemId = null;
 }
 
-function saveInlineEdit(queueId) {
+function performActionWithEdit(queueId, action) {
   const item = state.queue.find(q => q._id === queueId);
   if (!item) return;
 
@@ -575,13 +577,20 @@ function saveInlineEdit(queueId) {
     return;
   }
 
+  // First save the edit, then perform the action
   socket.emit('action:moderation', { queueId, botId: item.botId, action: 'edit', newAnswer }, (res) => {
     if (!res.success) {
       alert('Failed to edit comment: ' + res.error);
     } else {
       item.answer = newAnswer;
-      renderQueues();
-      currentEditingItemId = null;
+      
+      // Now perform the requested action
+      socket.emit('action:moderation', { queueId, botId: item.botId, action }, (res2) => {
+        if (!res2.success) {
+          alert('Failed to perform action: ' + res2.error);
+          renderQueues();
+        }
+      });
     }
   });
 }
