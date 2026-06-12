@@ -77,7 +77,7 @@ const AUDIENCE_RE = /\b(all|guys|everyone|sab|sabko|sablog|sab\s*log|logo|logon|
 
 const ROOM_QUESTION_RE = /\b(koi\s+batao|koi\s+bolo|anyone\s+know|koi\s+hai|kisiko\s+pata|koi\s+suno|koi\s+bata)\b|कोई\s+बताओ|कोई\s+bolo|कोई\s+है|किसीको\s+पता|किसी\s+को\s+पता|कोई\s+सुनो|कोई\s+बता/iu;
 
-const OTHER_PERSON_TERMS = /\b(didi|bhaiya|di|sis|sister|bro|brother)\b|दीदी|भैया|दी|ब्रदर/iu;
+const OTHER_PERSON_TERMS = /\b(didi|bhaiya|di|sis|sister|bro|brother)\b|(?<=^|[\s,;.!?-])(?:दीदी|भैया|दी|ब्रदर)(?=[\s,;.!?-]|$)/iu;
 
 const MULTI_WORD_REPLACEMENTS = [
   { pattern: /\b(?:ab\s+sheikh|ab\s+shekh|ab\s+sekh|ab\s+shak)\b/gi, replacement: 'abhishek' },
@@ -204,6 +204,15 @@ export function classifyTarget(text, botNames = []) {
     }
 
     // Only other people named or addressed, bot not mentioned — hard ignore.
+    // BUT if none of the other people are explicitly addressed, and we see second-person pronouns,
+    // they are likely talking to the bot about this other person.
+    const otherNamesInText = [...nameRoles.keys()].filter(name => !botSet.has(name));
+    const otherNamesAddressed = otherNamesInText.some(name => nameRoles.get(name).has('addressed'));
+    if (!otherNamesAddressed && SECOND_PERSON_RE.test(text)) {
+      log.debug({ text, names: [...nameRoles.keys()] }, 'Target: allowed (talking to bot about another person)');
+      return { target: 'allowed', shouldProcess: true };
+    }
+
     log.debug({ text, names: [...nameRoles.keys()], hasOtherPersonTerm }, 'Target: other_person');
     return { target: 'other_person', shouldProcess: false };
   }

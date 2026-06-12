@@ -34,7 +34,7 @@ export function createTranscriptProcessor(config) {
       return noiseWords.has(w) || blacklist.test(w) || w.length <= 2;
     });
 
-    const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText);
+    const isZhaal = /^[झाल\s,;.!?-]+$/.test(cleanText) || cleanText.includes("कि अग्षिएट") || cleanText.includes("कि अगषिएट");
 
     const words = cleanText.toLowerCase().split(/\s+/).filter(Boolean);
     const uniqueWords = new Set(words);
@@ -45,24 +45,31 @@ export function createTranscriptProcessor(config) {
       return;
     }
 
+    log.debug({ roomId, speakerId, text }, '📝 Transcript received and storing in context');
+    
+    // Store in database context regardless of whether we reply
+    try {
+      await context.addTranscript(roomId, text, speakerId);
+    } catch (err) {
+      log.error({ err, roomId }, 'Error saving transcript to context');
+    }
+
+    // Filter out if not addressed to the bot
     const targetResult = classifyTarget(text, [botIdentity, botDisplayName]);
     if (targetResult.shouldProcess === false) {
       log.info({ text, target: targetResult.target }, 'Transcript filtered out — addressing someone else / ambient');
       return;
     }
 
-    if (targetResult.shouldProcess === true && targetResult.target === 'allowed') {
-
-      if (gateCheck) {
-        const gateResult = await gateCheck.check(text);
-        if (gateResult.directed === 'person') {
-          log.info({ text }, 'Groq gate determined utterance is directed at another person — ignoring');
-          return;
-        }
+    const botName = botIdentity.split('-')[0].toLowerCase();
+    if (gateCheck) {
+      const gateResult = await gateCheck.check(text);
+      if (gateResult.directed !== botName && !gateResult.directed.includes(botName) && !botName.includes(gateResult.directed)) {
+        log.info({ text, directed: gateResult.directed, botName }, 'Transcript ignored — not directed to the bot');
+        return;
       }
     }
 
-    log.debug({ roomId, speakerId, text }, '📝 Transcript received');
     try {
       let resolvedUsername = speakerId;
       if (roomRef?.room) {
@@ -72,7 +79,6 @@ export function createTranscriptProcessor(config) {
         }
       }
 
-      await context.addTranscript(roomId, text, speakerId);
       const decision = await behavior.evaluate({ roomId, type: 'transcript', text });
       if (!decision.shouldReply) return;
       bus.emit(Events.BEHAVIOR_APPROVED, {

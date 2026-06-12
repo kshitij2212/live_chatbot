@@ -10,7 +10,6 @@ const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
 const FALLBACK_MODELS = [
   'llama-3.3-70b-versatile',
-  'openai/gpt-oss-120b'
 ];
 
 export function createGroqAdapter(config) {
@@ -24,7 +23,12 @@ export function createGroqAdapter(config) {
     retryBaseMs = 500,
   } = config;
 
-  if (!apiKey?.trim()) throw new Error('GroqAdapter: apiKey is required');
+  let trimmedApiKey = apiKey?.trim();
+  const defaultApiKey = process.env.GROQ_API_KEY?.trim();
+
+  log.info({ keyLength: trimmedApiKey?.length, keyPrefix: trimmedApiKey?.slice(0, 10), model }, 'Initializing GroqAdapter');
+
+  if (!trimmedApiKey) throw new Error('GroqAdapter: apiKey is required');
   if (!model?.trim())  throw new Error('GroqAdapter: model is required');
 
   async function _sendRequest(messages, options = {}) {
@@ -46,7 +50,7 @@ export function createGroqAdapter(config) {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${trimmedApiKey}`,
         },
         body,
         signal: controller.signal,
@@ -59,6 +63,27 @@ export function createGroqAdapter(config) {
       throw new GroqNetworkError(`Groq network error: ${err.message}`, { cause: err });
     } finally {
       clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      const status = response.status;
+      if (status === 401 && defaultApiKey && trimmedApiKey !== defaultApiKey) {
+        log.warn('Groq key returned 401. Falling back to default GROQ_API_KEY...');
+        trimmedApiKey = defaultApiKey;
+        try {
+          response = await fetch(GROQ_API_ENDPOINT, {
+            method:  'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${defaultApiKey}`,
+            },
+            body,
+            signal: controller.signal,
+          });
+        } catch (err) {
+          throw new GroqNetworkError(`Groq network error on fallback: ${err.message}`, { cause: err });
+        }
+      }
     }
 
     if (!response.ok) {

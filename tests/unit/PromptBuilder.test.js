@@ -87,4 +87,33 @@ describe('PromptBuilder', () => {
     expect(messages[3]).toEqual({ role: 'user', content: 'Owner (Streamer): How is the stream?' });
     expect(messages[0].content).toContain('Do NOT welcome them to the stream');
   });
+
+  test('buildSystemPrompt maps gender-aware addressing (female -> didi)', () => {
+    const builder = createPromptBuilder();
+    const femalePersona = {
+      ...persona,
+      replyStyle: {
+        ...persona.replyStyle,
+        exampleReplies: ['kaise ho bhaiya', 'sahi hai bhaiya'],
+      }
+    };
+    const systemPrompt = builder.buildSystemPrompt(femalePersona, { broadcasterGender: 'female' });
+    expect(systemPrompt).toContain('kaise ho didi');
+    expect(systemPrompt).toContain('sahi hai didi');
+    expect(systemPrompt).toContain('didi mujhe in sab chizon mein interest nahi hai');
+  });
+
+  test('build pre-processes and injects lyricsLine into trigger', () => {
+    const builder = createPromptBuilder();
+    const payload = {
+      persona,
+      history: [],
+      trigger: { text: 'Gaao na...', username: 'User' },
+      roomId: 'room-123',
+      meta: { lyricsLine: 'Hoshwalon ko khabar kya...' },
+    };
+
+    const messages = builder.build(payload);
+    expect(messages[messages.length - 1].content).toContain('(Lyrics context: Hoshwalon ko khabar kya...)');
+  });
 });

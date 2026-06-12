@@ -43,6 +43,10 @@ function cleanText(text) {
 
   t = t.replace(/\s+/g, ' ').trim();
 
+  if (t.endsWith('.')) {
+    t = t.slice(0, -1).trim();
+  }
+
   return t;
 }
 

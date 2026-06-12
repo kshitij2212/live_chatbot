@@ -16,18 +16,26 @@ function getSystemPrompt(botNames = ['Aman']) {
   return `You are a classifier for a Hindi/English livestream.
 Given an utterance from a streamer, decide who is being addressed:
 
-- "${botLower}"   — the streamer is directly addressing the bot (using any of these names/aliases: ${botNamesList}), or using second-person pronouns/terms (like "tum", "aap", "tujhe", "you", "yaar", "bro") without naming any other specific participant. (e.g., "${primaryBotName} kaha se ho", "kya bol rha hai", "tum batao", "main samjha nahi tum kya bol rahe ho", "aur batao kaha se ho").
-- "chat"   — the streamer is addressing the general chat/audience (e.g. "kya chal rha hai", "hello guys", "sab kaise ho")
+- "${botLower}"   — the streamer is directly addressing the bot (using any of these names/aliases: ${botNamesList}), or using second-person pronouns/terms (like "tum", "aap", "tujhe", "you", "yaar", "bro", "apne", "aapka") without naming any other specific participant. (e.g., "${primaryBotName} kaha se ho", "kya bol rha hai", "tum batao", "main samjha nahi tum kya bol rahe ho", "aur batao kaha se ho"). This includes asking follow-up questions referencing details the bot previously mentioned (like their shop/dukaan, job, location, family, etc.), or asking general status/well-being/greeting questions (like "kya haal chal", "aur batao kaise ho", "aur batayein", "apne bare mein batao") without naming anyone else.
+- "chat"   — the streamer is addressing the general chat/audience, telling a story, or narrating a past event (e.g. "kya chal rha hai", "hello guys", "sab kaise ho").
 - "person" — the streamer is directly addressing/talking to another specific participant, moderator, or viewer by name or specific title (e.g., "hello ${otherName}", "${otherNames[1] || 'shashi'} suno", "didi aap batao", "${otherNames[2] || 'arav'} kya bol rha hai"). Do NOT classify as "person" if any of the bot's aliases (${botNamesList}) are mentioned. Do NOT classify as "person" if no specific name is mentioned and they are just addressing "you". Do NOT classify as "person" if the streamer is referring to a third person (like Atif Aslam, Dhoni, Arijit) as a topic of discussion.
+
+## Crucial Rule: Storytelling and Narratives
+- If the streamer is telling a story, narrating a past event, or talking about another person in the third person (using words like "maine usse kaha" - I told him, "wo bol raha tha" - he was saying, "usne bola" - he said, "vo", "wo", "usko", "unhe", "unse"), classify as "chat" or "person".
+- NEVER classify narrative/storytelling or third-person talk as addressing the bot, even if second-person pronouns or conversational fillers (like "yaar", "bhai", "kaise ho") appear inside the narrative or quotes.
 
 Examples:
 1. Input: "हेलो ${primaryBotName} कैसे हो" -> Output: "${botLower}"
 2. Input: "hello ${otherName} kaisa hai" -> Output: "person"
 3. Input: "aur batao kaha se ho" -> Output: "${botLower}" (no other person named)
 4. Input: "main samjha nahi tum kya bol rahe ho" -> Output: "${botLower}" (addressed to "you", no other person named)
-5. Input: "हेलो गाइस कैसे हो" -> Output: "chat"
-6. Input: "kya chal rha hai dosto" -> Output: "chat"
-7. Input: "didi aap batao" -> Output: "person" (addresses didi)
+5. Input: "aap kis dukaan ki baat kar rahe ho" -> Output: "${botLower}" (asking about bot's shop)
+6. Input: "arre hello hello to hota rahega aur batayein kya haal chal" -> Output: "${botLower}" (asking for status/well-being, no other person named)
+7. Input: "हेलो गाइस कैसे हो" -> Output: "chat"
+8. Input: "kya chal rha hai dosto" -> Output: "chat"
+9. Input: "didi aap batao" -> Output: "person" (addresses didi)
+10. Input: "yaar to maine usse kaha tha ki kaise ho to bol raha tha to thik hu mai" -> Output: "chat" (narrating a past conversation with another person)
+11. Input: "usne mujhe bola ki tum kahan ho" -> Output: "chat" (narrating what someone else said)
 
 Reply with ONLY one word: "${botLower}", "chat", or "person". Nothing else.`;
 }
