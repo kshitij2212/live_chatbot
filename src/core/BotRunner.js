@@ -5,6 +5,7 @@ import bus, { Events }           from './EventBus.js';
 import logger                    from '../utils/logger.js';
 import config                    from '../../config/default.js';
 import { resolveUser, resolveActiveLiveSession } from '../utils/database.js';
+import { updateEnvValue } from '../utils/envHelper.js';
 
 import { createLiveKitConnector }  from '../realtime/LiveKitConnector.js';
 import { createSocketIOConnector }   from '../realtime/SocketIOConnector.js';
@@ -92,6 +93,18 @@ export function createBotRunner() {
           if (redis) {
             await redis.set(`user:${broadcasterId}`, JSON.stringify(broadcasterDetails), 'EX', 3600)
               .catch(err => log.warn({ err }, 'Failed to cache broadcaster details in Redis'));
+
+            // Store assigned room and owner data for the bot persona
+            const botKey = `bot:${config.livekit.botPersona}:rooms`;
+            const roomData = {
+              roomId,
+              roomName,
+              broadcasterId,
+              owner: broadcasterDetails,
+              joinedAt: new Date().toISOString()
+            };
+            await redis.hset(botKey, roomId, JSON.stringify(roomData))
+              .catch(err => log.warn({ err, botKey }, 'Failed to save bot room data to Redis'));
           }
 
           await context.clearRoom(roomId);
@@ -100,21 +113,39 @@ export function createBotRunner() {
             botUserId: config.livekit.botIdentity,
             startedAt: new Date().toISOString(),
             broadcasterGender: broadcasterDetails.gender || '',
+            broadcasterId: String(broadcasterId),
           });
         })
         .catch(async (err) => {
           log.warn({ err }, 'Failed to resolve broadcaster details, setting default room meta');
+          if (redis) {
+            const botKey = `bot:${config.livekit.botPersona}:rooms`;
+            const roomData = {
+              roomId,
+              roomName,
+              broadcasterId,
+              joinedAt: new Date().toISOString()
+            };
+            await redis.hset(botKey, roomId, JSON.stringify(roomData))
+              .catch(err => log.warn({ err, botKey }, 'Failed to save bot room data to Redis'));
+          }
           await context.clearRoom(roomId);
           await context.setMeta(roomId, {
             roomName,
             botUserId: config.livekit.botIdentity,
             startedAt: new Date().toISOString(),
+            broadcasterId: String(broadcasterId),
           });
         });
     });
 
     on(Events.ROOM_DISCONNECTED, async ({ roomId, reason }) => {
       log.warn({ roomId, reason }, 'Left room');
+      if (redis) {
+        const botKey = `bot:${config.livekit.botPersona}:rooms`;
+        await redis.hdel(botKey, roomId)
+          .catch(err => log.warn({ err, botKey }, 'Failed to remove bot room data from Redis'));
+      }
       try {
         await compileAndSaveInsights(roomId);
       } catch (err) {
@@ -164,7 +195,65 @@ export function createBotRunner() {
       config.livekit.botPersona = botId;
     }
 
-    const broadcasterId = config.socket.broadcasterId;
+    const activePersona = config.livekit.botPersona;
+    const blockedUserIds = [];
+    const otherBotDisplayNames = [];  // display names of other bots for comment filtering
+
+    const botDefs = [
+      {
+        key: 'aman',
+        envId: 'SOCKET_USER_ID_AMAN',
+        defaultId: '2',
+        envIdentity: 'BOT_IDENTITY_AMAN',
+        defaultIdentity: 'aman-bot',
+        envName: 'BOT_DISPLAY_NAME_AMAN',
+        defaultName: 'Aman',
+        displayNameVariations: ['Aman', 'Aman Gupta', 'gupta', 'aman', 'अमन', 'आमन', 'अमं', 'अमान', 'हमन']
+      },
+      {
+        key: 'shivam',
+        envId: 'SOCKET_USER_ID_SHIVAM',
+        defaultId: '3',
+        envIdentity: 'BOT_IDENTITY_SHIVAM',
+        defaultIdentity: 'shivam-bot',
+        envName: 'BOT_DISPLAY_NAME_SHIVAM',
+        defaultName: 'Shivam',
+        displayNameVariations: ['Shivam', 'Shivam Soni', 'soni', 'shivam', 'शिवम', 'शवाम', 'शीवम', 'शवंम', 'शेबंबाई', 'शेबं', 'शिबम', 'शिवं', 'севम', 'सेवम', 'शेबम', 'शिवन', 'शिवा', 'शे बाम', 'शेबाम']
+      },
+      {
+        key: 'abhishek',
+        envId: 'SOCKET_USER_ID_ABHISHEK',
+        defaultId: '4',
+        envIdentity: 'BOT_IDENTITY_ABHISHEK',
+        defaultIdentity: 'abhishek-bot',
+        envName: 'BOT_DISPLAY_NAME_ABHISHEK',
+        defaultName: 'Abhishek',
+        displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena', 'abhishek', 'अभिषेक', 'अभिशेक', 'अभि', 'अभिशेख', 'अब्बी', 'अबे शेख', 'अबे सेख', 'अब्बी शेख']
+      },
+      {
+        key: 'rahul',
+        envId: 'SOCKET_USER_ID_RAHUL',
+        defaultId: '5',
+        envIdentity: 'BOT_IDENTITY_RAHUL',
+        defaultIdentity: 'rahul-bot',
+        envName: 'BOT_DISPLAY_NAME_RAHUL',
+        defaultName: 'Rahul',
+        displayNameVariations: ['Rahul', 'Rahul Sharma', 'sharma', 'sherma', 'kirana', 'rahul', 'राहुल', 'राउल', 'राऊल', 'राहू', 'राहूल']
+      }
+    ];
+
+    const activeDef = botDefs.find(def => activePersona.includes(def.key));
+
+    // Determine the broadcasterId for the active bot
+    let broadcasterId = config.socket.broadcasterId;
+    if (activeDef) {
+      const specificBroadcasterIdEnv = `SOCKET_BROADCASTER_ID_${activeDef.key.toUpperCase()}`;
+      if (process.env[specificBroadcasterIdEnv]) {
+        broadcasterId = Number(process.env[specificBroadcasterIdEnv].trim());
+        config.socket.broadcasterId = broadcasterId;
+      }
+    }
+
     if (broadcasterId) {
       log.info({ broadcasterId }, 'Querying active live session from DB...');
       try {
@@ -183,54 +272,6 @@ export function createBotRunner() {
       }
     }
 
-    const activePersona = config.livekit.botPersona;
-    const blockedUserIds = [];
-    const otherBotDisplayNames = [];  // display names of other bots for comment filtering
-
-    const botDefs = [
-      {
-        key: 'aman',
-        envId: 'SOCKET_USER_ID_AMAN',
-        defaultId: '2',
-        envIdentity: 'BOT_IDENTITY_AMAN',
-        defaultIdentity: 'aman-bot',
-        envName: 'BOT_DISPLAY_NAME_AMAN',
-        defaultName: 'Aman',
-        displayNameVariations: ['Aman', 'Aman Gupta', 'gupta']
-      },
-      {
-        key: 'shivam',
-        envId: 'SOCKET_USER_ID_SHIVAM',
-        defaultId: '3',
-        envIdentity: 'BOT_IDENTITY_SHIVAM',
-        defaultIdentity: 'shivam-bot',
-        envName: 'BOT_DISPLAY_NAME_SHIVAM',
-        defaultName: 'Shivam',
-        displayNameVariations: ['Shivam', 'Shivam Soni', 'soni']
-      },
-      {
-        key: 'abhishek',
-        envId: 'SOCKET_USER_ID_ABHISHEK',
-        defaultId: '4',
-        envIdentity: 'BOT_IDENTITY_ABHISHEK',
-        defaultIdentity: 'abhishek-bot',
-        envName: 'BOT_DISPLAY_NAME_ABHISHEK',
-        defaultName: 'Abhishek',
-        displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena']
-      },
-      {
-        key: 'rahul',
-        envId: 'SOCKET_USER_ID_RAHUL',
-        defaultId: '5',
-        envIdentity: 'BOT_IDENTITY_RAHUL',
-        defaultIdentity: 'rahul-bot',
-        envName: 'BOT_DISPLAY_NAME_RAHUL',
-        defaultName: 'Rahul',
-        displayNameVariations: ['Rahul', 'Rahul Sharma', 'sharma', 'sherma', 'kirana']
-      }
-    ];
-
-    const activeDef = botDefs.find(def => activePersona.includes(def.key));
     if (activeDef) {
       config.socket.userId = Number(process.env[activeDef.envId] ?? activeDef.defaultId);
       config.livekit.botIdentity = process.env[activeDef.envIdentity] ?? activeDef.defaultIdentity;
@@ -274,6 +315,7 @@ export function createBotRunner() {
       maxBotReplyEntries:   config.context.windowSize,
       contextTtl:           config.redis.contextTtlSeconds,
       unifiedRoomId:        config.livekit.roomName,
+      botId:                config.livekit.botPersona,
     });
     log.debug('✓ ContextMemory');
 
@@ -281,6 +323,7 @@ export function createBotRunner() {
       cooldownSeconds:      Math.floor(config.behavior.perUserCooldownMs / 1000),
       baseReplyProbability: config.behavior.replyProbability,
       maxRepliesPerMinute:  6,
+      botId:                config.livekit.botPersona,
     });
     log.debug('✓ BehaviorEngine');
 
@@ -499,6 +542,52 @@ export function createBotRunner() {
 
     await context.setInsights(roomId, insights);
     log.info({ roomId, insights }, '✓ Session insights saved to Redis successfully');
+
+    // Extract and persist facts about the live owner/broadcaster
+    const broadcasterId = data.meta?.broadcasterId || config.socket.broadcasterId;
+    if (broadcasterId && data.transcripts && data.transcripts.length > 0 && groqAdapter) {
+      const broadcasterTranscripts = data.transcripts
+        .filter(t => String(t.speakerId) === String(broadcasterId))
+        .map(t => t.text)
+        .join('\n');
+
+      if (broadcasterTranscripts.trim().length > 0) {
+        log.info({ roomId, broadcasterId }, 'Extracting broadcaster facts from session transcripts...');
+        try {
+          const messages = [
+            {
+              role: 'system',
+              content: `You are an information extraction assistant. Analyze the following transcript of a livestream and extract key personal facts about the broadcaster (the streamer/host). Look for details like their city, state, location of origin, age, hobbies, family, or work.
+Only extract clear facts explicitly stated by the broadcaster.
+Format your output as a simple JSON object containing keys like "location", "hobbies", "work", "facts" etc. Do not include any markdown formatting, JSON wrappers, or surrounding text. Output only the raw JSON.
+Example output:
+{
+  "location": "Gujarat",
+  "hobbies": "singing"
+}`
+            },
+            {
+              role: 'user',
+              content: broadcasterTranscripts
+            }
+          ];
+
+          const response = await groqAdapter.complete(messages, { maxTokens: 256, temperature: 0.1 });
+          const rawContent = response?.choices?.[0]?.message?.content?.trim() || '';
+          if (rawContent && rawContent.startsWith('{') && rawContent.endsWith('}')) {
+            const newFacts = JSON.parse(rawContent);
+            if (Object.keys(newFacts).length > 0) {
+              const existingFacts = await context.getBroadcasterFacts(broadcasterId) || {};
+              const mergedFacts = { ...existingFacts, ...newFacts };
+              await context.setBroadcasterFacts(broadcasterId, mergedFacts);
+              log.info({ roomId, broadcasterId, mergedFacts }, '✓ Broadcaster facts saved to Redis successfully');
+            }
+          }
+        } catch (err) {
+          log.warn({ err, roomId }, 'Failed to extract broadcaster facts from transcripts');
+        }
+      }
+    }
   }
 
   async function stop(reason = 'unknown') {
