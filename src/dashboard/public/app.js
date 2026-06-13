@@ -7,7 +7,10 @@ const state = {
   currentBotId: null,
   currentRoomId: null,
   currentRoomIds: [],
-  currentTab: 'pending' // pending, held, blacklist, audit
+  currentTab: 'pending', // pending, held, blacklist, audit
+  questionSet: null,
+  qsetGender: 'Female',
+  qsetCategory: 'General'
 };
 
 // Connect to Socket.IO Server
@@ -53,6 +56,11 @@ socket.on('init:blacklist', (blacklist) => {
 socket.on('init:logs', (logs) => {
   state.logs = logs;
   renderAuditLogs();
+});
+
+socket.on('init:question_set', (questionSet) => {
+  state.questionSet = questionSet;
+  renderQuestionSet();
 });
 
 // Update Event Handlers
@@ -141,8 +149,12 @@ function navigateTo(page) {
 
 function selectBot(botId) {
   state.currentBotId = botId;
-  navigateTo('rooms');
-  updateRoomsView();
+  const bot = state.bots.find(b => b.botId === botId);
+  if (bot && bot.rooms && bot.rooms.length > 0) {
+    selectRoom(botId, bot.rooms[0].roomId);
+  } else {
+    navigateTo('bots');
+  }
 }
 
 function selectRoom(botId, roomId) {
@@ -161,6 +173,160 @@ function refreshBotsData() {
   socket.emit('refresh:bots');
 }
 
+function updateBroadcasterId(botId, btnElement) {
+  const container = btnElement.parentElement;
+  const input = container.querySelector('.broadcaster-id-input');
+  const broadcasterId = input.value.trim();
+  
+  if (!broadcasterId) {
+    alert('Broadcaster ID cannot be empty');
+    return;
+  }
+  
+  btnElement.disabled = true;
+  btnElement.textContent = 'Saving...';
+  
+  socket.emit('action:update_broadcaster_id', { botId, broadcasterId }, (res) => {
+    btnElement.disabled = false;
+    if (res.success) {
+      btnElement.textContent = 'Saved!';
+      btnElement.classList.remove('btn-secondary');
+      btnElement.classList.add('btn-success');
+      setTimeout(() => {
+        btnElement.textContent = 'Set';
+        btnElement.classList.remove('btn-success');
+        btnElement.classList.add('btn-secondary');
+      }, 1500);
+    } else {
+      btnElement.textContent = 'Set';
+      alert('Failed to update Broadcaster ID: ' + res.error);
+    }
+  });
+}
+
+function launchBot(botId, btnElement) {
+  btnElement.disabled = true;
+  btnElement.textContent = 'Launching...';
+  
+  socket.emit('action:launch_bot', { botId }, (res) => {
+    if (res.success) {
+      setTimeout(() => {
+        socket.emit('refresh:bots');
+      }, 3000);
+    } else {
+      btnElement.disabled = false;
+      btnElement.textContent = '🚀 Launch';
+      alert('Failed to launch bot: ' + res.error);
+    }
+  });
+}
+
+function endBotProcess() {
+  const botId = state.currentBotId;
+  if (!botId) return;
+
+  if (confirm(`Are you sure you want to stop bot: ${botId}? This will terminate the bot runner process.`)) {
+    socket.emit('action:stop_bot', { botId }, (res) => {
+      if (res.success) {
+        alert('Bot shutdown command sent successfully.');
+        navigateTo('bots');
+      } else {
+        alert('Failed to stop bot: ' + res.error);
+      }
+    });
+  }
+}
+
+function getBotImageUrl(botId) {
+  if (!botId) return '';
+  const clean = botId.endsWith('-bot') ? botId.substring(0, botId.length - 4) : botId;
+  const lower = clean.toLowerCase();
+  if (lower === 'simran') {
+    return '/images/SimranKaur.jpg';
+  }
+  // Capitalize first letter
+  const cap = clean.charAt(0).toUpperCase() + clean.slice(1);
+  return `/images/${cap}.jpg`;
+}
+
+function renderBotCardHtml(bot) {
+  const isOnline = bot.status === 'online';
+  const imageUrl = getBotImageUrl(bot.botId);
+  const persona = bot.persona;
+  
+  let detailsHtml = '';
+  if (persona) {
+    const age = persona.age ? `${persona.age} yrs` : '';
+    const location = persona.location ? `${escapeHtml(persona.location)}` : '';
+    const backstory = persona.backstory ? `<p class="bot-backstory-snippet" title="${escapeHtml(persona.backstory)}">${escapeHtml(persona.backstory)}</p>` : '';
+    
+    let tagsHtml = '';
+    if (Array.isArray(persona.interests) && persona.interests.length > 0) {
+      tagsHtml = `
+        <div class="bot-tags">
+          ${persona.interests.map(interest => `<span class="trait-tag">#${escapeHtml(interest)}</span>`).join('')}
+        </div>
+      `;
+    }
+    
+    detailsHtml = `
+      <div class="bot-details-minimal">
+        <div class="bot-meta-row">${location} ${age}</div>
+        ${backstory}
+        ${tagsHtml}
+      </div>
+    `;
+  } else {
+    detailsHtml = `
+      <div class="bot-details-minimal">
+        <div class="bot-meta-row" style="color: var(--text-muted); font-style: italic;">No persona details synced.</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="bot-card ${isOnline ? 'online' : 'offline'}" data-bot-id="${escapeHtml(bot.botId)}">
+      <div class="bot-card-top">
+        <img class="bot-avatar" src="${imageUrl}" alt="${escapeHtml(bot.displayName)}" onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\' viewBox=\'0 0 100 100\'><rect width=\'100%\' height=\'100%\' fill=\'%233a3b3c\'/><text x=\'50%\' y=\'55%\' font-family=\'sans-serif\' font-size=\'32\' fill=\'%23a0a0a0\' text-anchor=\'middle\'>🤖</text></svg>';">
+        <div class="bot-header">
+          <div class="bot-title-area">
+            <h3>${escapeHtml(bot.displayName)}</h3>
+            <span class="bot-subtitle">${escapeHtml(bot.botId)}</span>
+          </div>
+          <div class="bot-status-tag ${isOnline ? 'online' : 'offline'}">
+            <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span> ${isOnline ? 'ONLINE' : 'OFFLINE'}
+          </div>
+        </div>
+      </div>
+      
+      ${detailsHtml}
+      
+      <div class="bot-rooms-stat">
+        <span class="label">Connected Rooms</span>
+        <span class="value">${bot.roomsCount}</span>
+      </div>
+
+      <div class="bot-broadcaster-id-area">
+        <div class="label">Broadcaster ID</div>
+        <div class="broadcaster-id-form">
+          <input type="text" class="broadcaster-id-input" value="${escapeHtml(String(bot.broadcasterId || ''))}" placeholder="Enter ID..." data-bot-id="${escapeHtml(bot.botId)}">
+          <button class="btn btn-sm btn-secondary" onclick="updateBroadcasterId('${escapeHtml(bot.botId)}', this)">Set</button>
+        </div>
+      </div>
+
+      ${isOnline ? `
+        <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;" onclick="selectBot('${escapeHtml(bot.botId)}')">
+          Open Console &rarr;
+        </button>
+      ` : `
+        <button class="btn btn-success" style="width: 100%; justify-content: center; margin-top: 1rem;" onclick="launchBot('${escapeHtml(bot.botId)}', this)">
+          🚀 Launch
+        </button>
+      `}
+    </div>
+  `;
+}
+
 // Rendering Functions
 function renderBots() {
   const grid = document.getElementById('bots-grid');
@@ -168,36 +334,70 @@ function renderBots() {
     grid.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🤖</div>
-        <h3>No active bots detected</h3>
-        <p>Ensure your BotRunner processes are connected to Redis and running.</p>
+        <h3>No bots detected</h3>
+        <p>Ensure your BotRunner configurations are available.</p>
         <button class="btn btn-primary" onclick="refreshBotsData()" style="margin-top: 1rem;">🔄 Retry Scan</button>
       </div>
     `;
     return;
   }
 
-  grid.innerHTML = state.bots.map(bot => `
-    <div class="bot-card">
-      <div class="bot-header">
-        <div class="bot-title-area">
-          <h3>${escapeHtml(bot.displayName)}</h3>
-          <span class="bot-subtitle">${escapeHtml(bot.botId)}</span>
-        </div>
-        <div class="bot-status-tag">
-          <span class="status-indicator online"></span> ONLINE
-        </div>
-      </div>
-      
-      <div class="bot-rooms-stat">
-        <div class="label">Connected Rooms</div>
-        <div class="value">${bot.roomsCount}</div>
-      </div>
+  // If the grid has no cards yet, perform a full initial render
+  if (!grid.querySelector('.bot-card')) {
+    grid.innerHTML = state.bots.map(bot => renderBotCardHtml(bot)).join('');
+    return;
+  }
 
-      <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="selectBot('${escapeHtml(bot.botId)}')">
-        Manage Rooms &rarr;
-      </button>
-    </div>
-  `).join('');
+  // Otherwise, update existing cards in-place to preserve inputs, typed values, and active focus!
+  state.bots.forEach(bot => {
+    const card = grid.querySelector(`.bot-card[data-bot-id="${bot.botId}"]`);
+    if (card) {
+      const isOnline = bot.status === 'online';
+      
+      // Update card classes
+      card.className = `bot-card ${isOnline ? 'online' : 'offline'}`;
+      
+      // Update status tag
+      const statusTag = card.querySelector('.bot-status-tag');
+      if (statusTag) {
+        statusTag.className = `bot-status-tag ${isOnline ? 'online' : 'offline'}`;
+        statusTag.innerHTML = `<span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span> ${isOnline ? 'ONLINE' : 'OFFLINE'}`;
+      }
+      
+      // Update rooms count value
+      const roomsVal = card.querySelector('.bot-rooms-stat .value');
+      if (roomsVal) {
+        roomsVal.textContent = bot.roomsCount;
+      }
+      
+      // Update Broadcaster ID input value only if the user is not currently focusing it
+      const input = card.querySelector('.broadcaster-id-input');
+      if (input && document.activeElement !== input) {
+        input.value = bot.broadcasterId || '';
+      }
+      
+      // Update action button (Manage Rooms / Launch) depending on status
+      const primaryBtn = card.querySelector('.btn-primary');
+      const successBtn = card.querySelector('.btn-success:not([onclick*="updateBroadcasterId"])');
+      
+      if (isOnline && successBtn) {
+        successBtn.outerHTML = `
+          <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;" onclick="selectBot('${escapeHtml(bot.botId)}')">
+            Open Console &rarr;
+          </button>
+        `;
+      } else if (!isOnline && primaryBtn) {
+        primaryBtn.outerHTML = `
+          <button class="btn btn-success" style="width: 100%; justify-content: center; margin-top: 1rem;" onclick="launchBot('${escapeHtml(bot.botId)}', this)">
+            🚀 Launch
+          </button>
+        `;
+      }
+    } else {
+      // Fallback: If a card is missing, rebuild the grid
+      grid.innerHTML = state.bots.map(bot => renderBotCardHtml(bot)).join('');
+    }
+  });
 }
 
 function updateRoomsView() {
@@ -283,6 +483,17 @@ function updateBroadcasterMeta() {
 
   nameEl.textContent = profile.name;
   genderEl.textContent = profile.gender;
+
+  if (profile.gender && profile.gender !== 'Unknown') {
+    const lowerGender = profile.gender.toLowerCase();
+    if (lowerGender.includes('female') || lowerGender === 'f') {
+      state.qsetGender = 'Female';
+    } else if (lowerGender.includes('male') || lowerGender === 'm') {
+      state.qsetGender = 'Male';
+    }
+    updateQSetFilterButtons();
+  }
+  renderQuestionSet();
 }
 
 function syncCustomReplyHeight() {
@@ -577,20 +788,11 @@ function performActionWithEdit(queueId, action) {
     return;
   }
 
-  // First save the edit, then perform the action
-  socket.emit('action:moderation', { queueId, botId: item.botId, action: 'edit', newAnswer }, (res) => {
+  // Send single request to edit and perform action immediately
+  socket.emit('action:moderation', { queueId, botId: item.botId, action, newAnswer }, (res) => {
     if (!res.success) {
-      alert('Failed to edit comment: ' + res.error);
-    } else {
-      item.answer = newAnswer;
-      
-      // Now perform the requested action
-      socket.emit('action:moderation', { queueId, botId: item.botId, action }, (res2) => {
-        if (!res2.success) {
-          alert('Failed to perform action: ' + res2.error);
-          renderQueues();
-        }
-      });
+      alert('Failed to perform action: ' + res.error);
+      renderQueues();
     }
   });
 }
@@ -654,6 +856,126 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// Question Set Interactive Actions
+function setQSetGender(gender) {
+  state.qsetGender = gender;
+  updateQSetFilterButtons();
+  renderQuestionSet();
+}
+
+function setQSetCategory(category) {
+  state.qsetCategory = category;
+  updateQSetFilterButtons();
+  renderQuestionSet();
+}
+
+function updateQSetFilterButtons() {
+  ['Female', 'Male', 'All'].forEach(g => {
+    const btn = document.getElementById(`qbtn-gender-${g.toLowerCase()}`);
+    if (btn) {
+      if (state.qsetGender === g) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+  });
+
+  ['General', 'Conversational', 'Singing Off'].forEach(c => {
+    const btnId = `qbtn-cat-${c.toLowerCase().replace(' ', '')}`;
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      if (state.qsetCategory === c) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+  });
+}
+
+function renderQuestionSet() {
+  const container = document.getElementById('qset-list');
+  if (!container) return;
+
+  if (!state.questionSet) {
+    container.innerHTML = `<div class="empty-state-mini">Loading questions...</div>`;
+    return;
+  }
+
+  let questions = [];
+  const genders = state.qsetGender === 'All' ? ['Female', 'Male'] : [state.qsetGender];
+  const category = state.qsetCategory;
+
+  genders.forEach(g => {
+    if (state.questionSet[g] && state.questionSet[g][category]) {
+      questions.push(...state.questionSet[g][category]);
+    }
+  });
+
+  questions = [...new Set(questions)];
+
+  if (questions.length === 0) {
+    container.innerHTML = `<div class="empty-state-mini">No questions found in this category.</div>`;
+    return;
+  }
+
+  container.innerHTML = questions.map(q => {
+    const escapedText = escapeHtml(q);
+    return `
+      <div class="qset-question-item">
+        <span class="qset-question-text" onclick="insertQuestionText('${escapedText.replace(/'/g, "\\'")}')" title="Insert into custom reply text area">${escapedText}</span>
+        <div class="qset-question-actions">
+          <button class="btn-qsend" onclick="directSendQuestion('${escapedText.replace(/'/g, "\\'")}', this)" title="Direct Send to Chat">✈️ Send</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function insertQuestionText(text) {
+  const input = document.getElementById('custom-reply-input');
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+}
+
+function directSendQuestion(text, btnElement) {
+  if (!state.currentBotId || !state.currentRoomId) {
+    alert('Please select an active bot and room first.');
+    return;
+  }
+
+  const originalText = btnElement.textContent;
+  btnElement.disabled = true;
+  btnElement.textContent = 'Sending...';
+
+  socket.emit('action:custom_reply', {
+    botId: state.currentBotId,
+    roomId: state.currentRoomId,
+    text: text
+  }, (res) => {
+    btnElement.disabled = false;
+    if (res.success) {
+      btnElement.textContent = 'Sent!';
+      btnElement.style.backgroundColor = 'var(--success)';
+      btnElement.style.color = '#fff';
+      setTimeout(() => {
+        btnElement.textContent = originalText;
+        btnElement.style.backgroundColor = '';
+        btnElement.style.color = '';
+      }, 1500);
+    } else {
+      btnElement.textContent = 'Error';
+      alert('Failed to send question: ' + res.error);
+      setTimeout(() => {
+        btnElement.textContent = originalText;
+      }, 1500);
+    }
+  });
 }
 
 // Trigger initial scan of active bots

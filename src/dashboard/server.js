@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -6,6 +7,8 @@ import mongoose from 'mongoose';
 import Redis from 'ioredis';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import fs from 'fs';
 
 import config from '../../config/default.js';
 import { getRejectQueueModel } from '../memory/models/ModerationQueue.js';
@@ -13,6 +16,7 @@ import { Blacklist } from '../memory/models/Blacklist.js';
 import { AuditLog } from '../memory/models/AuditLog.js';
 import { BotDefinition } from '../memory/models/BotDefinition.js';
 import { Persona } from '../memory/models/Persona.js';
+import { updateEnvValue } from '../utils/envHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +32,10 @@ const io = new Server(httpServer, {
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/images', express.static(path.join(process.cwd(), 'images')));
+
+// Map to track running child processes for bots
+const runningBots = new Map();
 
 // Connect to MongoDB
 mongoose.connect(config.mongo.url)
@@ -64,16 +72,61 @@ redisSub.on('message', (channel, message) => {
   }
 });
 
-// Helper: Get active bots and their active rooms from Redis hash `bot:*:rooms`
 async function getActiveBots() {
   try {
     const keys = await redisPub.keys('bot:*:rooms');
-    const activeBots = [];
-
+    
     // Also get all persona display names from MongoDB to enrich details
     const personas = await Persona.find({}).lean();
     const personasMap = new Map(personas.map(p => [p.botId, p]));
 
+    // Get all bot definitions (static + dynamic from DB)
+    const STATIC_BOT_DEFS = [
+      { key: 'aman', defaultName: 'Aman' },
+      { key: 'shivam', defaultName: 'Shivam' },
+      { key: 'abhishek', defaultName: 'Abhishek' },
+      { key: 'rahul', defaultName: 'Rahul' },
+      { key: 'priya', defaultName: 'Priya' },
+      { key: 'simran', defaultName: 'Simran' },
+      { key: 'neha', defaultName: 'Neha' },
+      { key: 'ananya', defaultName: 'Ananya' },
+      { key: 'divya', defaultName: 'Divya' }
+    ];
+    let dbDefs = [];
+    try {
+      dbDefs = await BotDefinition.find({}).lean();
+    } catch (e) {
+      console.error('Error fetching BotDefinitions:', e);
+    }
+    
+    const botDefs = [...STATIC_BOT_DEFS];
+    for (const dbDef of dbDefs) {
+      if (!botDefs.some(def => def.key === dbDef.key)) {
+        botDefs.push(dbDef);
+      }
+    }
+
+    // Map all botDefs to their botId (e.g. key + '-bot')
+    const allBotsMap = new Map();
+    for (const def of botDefs) {
+      const botId = def.defaultIdentity || `${def.key}-bot`;
+      const displayName = def.defaultName || def.key.charAt(0).toUpperCase() + def.key.slice(1);
+      const broadcasterEnvKey = `SOCKET_BROADCASTER_ID_${def.key.toUpperCase()}`;
+      const broadcasterId = process.env[broadcasterEnvKey] || process.env.SOCKET_BROADCASTER_ID || '';
+      
+      allBotsMap.set(botId, {
+        botId,
+        displayName,
+        broadcasterId,
+        broadcasterEnvKey,
+        roomsCount: 0,
+        rooms: [],
+        status: 'offline',
+        persona: personasMap.get(botId) || null
+      });
+    }
+
+    // Enrich with Redis active data
     for (const key of keys) {
       const botId = key.split(':')[1];
       const roomsData = await redisPub.hgetall(key);
@@ -97,7 +150,6 @@ async function getActiveBots() {
               };
             } else {
               broadcasterGroups[bId].allRoomIds.push(roomId);
-              // Prefer LiveKit room names (usually starting with live_) as primary
               if (roomId.startsWith('live_')) {
                 broadcasterGroups[bId].roomName = room.roomName || roomId;
                 broadcasterGroups[bId].roomId = roomId;
@@ -113,19 +165,32 @@ async function getActiveBots() {
       }
 
       const activeRooms = Object.values(broadcasterGroups);
-
-      if (activeRooms.length > 0) {
+      
+      if (allBotsMap.has(botId)) {
+        const botData = allBotsMap.get(botId);
+        botData.roomsCount = activeRooms.length;
+        botData.rooms = activeRooms;
+        botData.status = activeRooms.length > 0 ? 'online' : 'offline';
+      } else {
         const personaInfo = personasMap.get(botId);
-        activeBots.push({
+        const keyName = botId.endsWith('-bot') ? botId.substring(0, botId.length - 4) : botId;
+        const broadcasterEnvKey = `SOCKET_BROADCASTER_ID_${keyName.toUpperCase()}`;
+        const broadcasterId = process.env[broadcasterEnvKey] || process.env.SOCKET_BROADCASTER_ID || '';
+        
+        allBotsMap.set(botId, {
           botId,
           displayName: personaInfo?.displayName || botId.replace('-bot', ''),
+          broadcasterId,
+          broadcasterEnvKey,
           roomsCount: activeRooms.length,
           rooms: activeRooms,
+          status: activeRooms.length > 0 ? 'online' : 'offline',
           persona: personaInfo || null
         });
       }
     }
-    return activeBots;
+
+    return Array.from(allBotsMap.values());
   } catch (err) {
     console.error('Error fetching active bots:', err);
     return [];
@@ -154,6 +219,50 @@ async function getPendingQueues() {
   return pendingQueue;
 }
 
+async function parseQuestionSet() {
+  try {
+    const filePath = path.join(process.cwd(), 'roxstar-user-question-set.md');
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    
+    const lines = content.split('\n');
+    let currentGender = '';
+    let currentCategory = '';
+    const questionSet = {
+      Female: {},
+      Male: {}
+    };
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+
+      if (line.startsWith('## ')) {
+        const gender = line.substring(3).trim();
+        if (gender === 'Female' || gender === 'Male') {
+          currentGender = gender;
+        }
+      } else if (line.startsWith('### ')) {
+        currentCategory = line.substring(4).trim();
+        if (currentGender) {
+          if (!questionSet[currentGender][currentCategory]) {
+            questionSet[currentGender][currentCategory] = [];
+          }
+        }
+      } else if (currentGender && currentCategory) {
+        // e.g. "1. aap kis city se ho?"
+        const match = line.match(/^\d+\.\s*(.*)$/);
+        if (match) {
+          questionSet[currentGender][currentCategory].push(match[1].trim());
+        }
+      }
+    }
+    return questionSet;
+  } catch (error) {
+    console.error('Error parsing roxstar-user-question-set.md:', error);
+    return null;
+  }
+}
+
 // Socket.IO Connection Handler
 io.on('connection', async (socket) => {
   console.log('Admin client connected:', socket.id);
@@ -171,6 +280,11 @@ io.on('connection', async (socket) => {
 
     const logs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();
     socket.emit('init:logs', logs);
+
+    const questionSet = await parseQuestionSet();
+    if (questionSet) {
+      socket.emit('init:question_set', questionSet);
+    }
   } catch (err) {
     console.error('Error sending initial data to client:', err);
   }
@@ -192,6 +306,20 @@ io.on('connection', async (socket) => {
       const item = await RejectQueue.findById(queueId);
       if (!item) {
         return callback({ success: false, error: 'Queue item not found' });
+      }
+
+      // If newAnswer is provided, update the item first (handles inline edit + action combined)
+      if (newAnswer && newAnswer.trim() && action !== 'edit') {
+        item.answer = newAnswer.trim();
+        await item.save();
+
+        // Save Audit Log for edit
+        await AuditLog.create({
+          botId: item.botId,
+          roomId: item.roomId,
+          action: 'edit',
+          details: `Edited reply from: "${item.question}" to: "${item.answer}"`,
+        });
       }
 
       if (action === 'edit') {
@@ -391,6 +519,147 @@ io.on('connection', async (socket) => {
       callback({ success: true });
     } catch (err) {
       console.error('Error removing blacklist phrase:', err);
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // Handle Update Broadcaster ID
+  socket.on('action:update_broadcaster_id', async (payload, callback) => {
+    const { botId, broadcasterId } = payload;
+    try {
+      if (!botId) {
+        return callback({ success: false, error: 'botId is required' });
+      }
+      
+      const keyName = botId.endsWith('-bot') ? botId.substring(0, botId.length - 4) : botId;
+      const envKey = `SOCKET_BROADCASTER_ID_${keyName.toUpperCase()}`;
+      const cleanVal = String(broadcasterId).trim();
+      
+      if (!cleanVal) {
+        return callback({ success: false, error: 'Broadcaster ID cannot be empty' });
+      }
+      
+      updateEnvValue(envKey, cleanVal);
+      process.env[envKey] = cleanVal;
+      
+      await AuditLog.create({
+        botId,
+        action: 'edit',
+        details: `Updated ${envKey} to "${cleanVal}"`,
+      });
+      
+      const updatedLogs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();
+      io.emit('update:logs', updatedLogs);
+      
+      const activeBots = await getActiveBots();
+      io.emit('update:bots', activeBots);
+      
+      callback({ success: true });
+    } catch (err) {
+      console.error('Error updating broadcaster ID:', err);
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // Handle Launch Bot Process
+  socket.on('action:launch_bot', async (payload, callback) => {
+    const { botId } = payload;
+    try {
+      if (!botId) {
+        return callback({ success: false, error: 'botId is required' });
+      }
+      
+      const keyName = botId.endsWith('-bot') ? botId.substring(0, botId.length - 4) : botId;
+      
+      if (runningBots.has(botId)) {
+        return callback({ success: false, error: 'Bot is already running or launching' });
+      }
+      
+      console.log(`[Launch] Starting bot: ${keyName} in new macOS Terminal window`);
+      
+      const commandToRun = `cd ~/Desktop/Roxstar/ai_chatbot && npm run dev ${keyName}`;
+      
+      const appleScript = `tell application "Terminal"
+        do script "${commandToRun}"
+        activate
+      end tell`;
+      
+      const child = spawn('osascript', ['-e', appleScript], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      
+      child.unref();
+      // Since AppleScript returns quickly after opening the window, we set the process in runningBots
+      // to prevent spamming launch. In a production environment with proper heartbeat checking, this maps cleanly.
+      runningBots.set(botId, child);
+      
+      child.on('close', () => {
+        runningBots.delete(botId);
+      });
+      
+      child.on('error', () => {
+        runningBots.delete(botId);
+      });
+      
+      // Save Audit Log
+      await AuditLog.create({
+        botId,
+        action: 'edit',
+        details: `Launched bot: "${botId}" via command "npm run dev ${keyName}"`,
+      });
+      
+      const updatedLogs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();
+      io.emit('update:logs', updatedLogs);
+      
+      callback({ success: true });
+    } catch (err) {
+      console.error('Error launching bot:', err);
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // Handle Stop Bot Process
+  socket.on('action:stop_bot', async (payload, callback) => {
+    const { botId } = payload;
+    try {
+      if (!botId) {
+        return callback({ success: false, error: 'botId is required' });
+      }
+
+      console.log(`[Stop] Sending shutdown command to bot: ${botId}`);
+      
+      // Publish shutdown message to Redis moderation:channel
+      await redisPub.publish('moderation:channel', JSON.stringify({
+        type: 'shutdown',
+        botId: botId
+      }));
+
+      // If there's an associated process in runningBots, kill it
+      if (runningBots.has(botId)) {
+        const proc = runningBots.get(botId);
+        try {
+          proc.kill('SIGINT');
+        } catch (e) {}
+        runningBots.delete(botId);
+      }
+
+      // Save Audit Log
+      await AuditLog.create({
+        botId,
+        action: 'reject',
+        details: `Stopped bot: "${botId}" via dashboard command`,
+      });
+
+      const updatedLogs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();
+      io.emit('update:logs', updatedLogs);
+
+      const activeBots = await getActiveBots();
+      io.emit('update:bots', activeBots);
+
+      callback({ success: true });
+    } catch (err) {
+      console.error('Error stopping bot:', err);
       callback({ success: false, error: err.message });
     }
   });
