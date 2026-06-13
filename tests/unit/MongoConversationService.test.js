@@ -12,6 +12,15 @@ describe('MongoConversationService', () => {
     collections = {};
     const getCollection = (name) => {
       if (!collections[name]) {
+        if (name === 'bot_definitions') {
+          collections[name] = {
+            find: jest.fn().mockReturnValue({
+              toArray: jest.fn().mockResolvedValue([])
+            })
+          };
+          return collections[name];
+        }
+
         collections[name] = {
           insertOne: jest.fn().mockResolvedValue({ insertedId: 'mock-id' }),
           createIndex: jest.fn().mockResolvedValue('index-created')
@@ -40,10 +49,10 @@ describe('MongoConversationService', () => {
 
     const result = await service.saveQA(payload);
     expect(result.insertedId).toBe('mock-id');
-  expect(mockDb.collection).toHaveBeenCalledWith('conversations/aman');
-  expect(collections['conversations/aman'].insertOne).toHaveBeenCalledTimes(1);
+  expect(mockDb.collection).toHaveBeenCalledWith('conversationsqueue/aman');
+  expect(collections['conversationsqueue/aman'].insertOne).toHaveBeenCalledTimes(1);
 
-  const calledDoc = collections['conversations/aman'].insertOne.mock.calls[0][0];
+  const calledDoc = collections['conversationsqueue/aman'].insertOne.mock.calls[0][0];
     expect(calledDoc.botId).toBe('aman-bot');
     expect(calledDoc.roomId).toBe('room123');
     expect(calledDoc.question).toBe('How are you?');
@@ -59,7 +68,7 @@ describe('MongoConversationService', () => {
     };
 
     await service.saveQA(payload);
-    const calledDoc = collections['conversations/aman'].insertOne.mock.calls[0][0];
+    const calledDoc = collections['conversationsqueue/aman'].insertOne.mock.calls[0][0];
     expect(calledDoc.botId).toBe('aman');
     expect(calledDoc.question).toBe('');
     expect(calledDoc.questionUser).toBe('unknown');
@@ -67,9 +76,9 @@ describe('MongoConversationService', () => {
   });
 
   test('ensures required bot collections on initialization', () => {
-    expect(mockDb.collection).toHaveBeenCalledWith('conversations/aman');
-    expect(mockDb.collection).toHaveBeenCalledWith('conversations/shivam');
-    expect(mockDb.collection).toHaveBeenCalledWith('conversations/abhishek');
-    expect(mockDb.collection).toHaveBeenCalledWith('conversations/rahul');
+    expect(mockDb.collection).toHaveBeenCalledWith('conversationsqueue/aman');
+    expect(mockDb.collection).toHaveBeenCalledWith('reject_queue/aman');
+    expect(mockDb.collection).toHaveBeenCalledWith('conversationsqueue/divya');
+    expect(mockDb.collection).toHaveBeenCalledWith('reject_queue/divya');
   });
 });
