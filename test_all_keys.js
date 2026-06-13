@@ -8,6 +8,11 @@ const keys = [
   { name: 'GROQ_API_KEY_SHIVAM', value: process.env.GROQ_API_KEY_SHIVAM },
   { name: 'GROQ_API_KEY_ABHISHEK', value: process.env.GROQ_API_KEY_ABHISHEK },
   { name: 'GROQ_API_KEY_RAHUL', value: process.env.GROQ_API_KEY_RAHUL },
+  { name: 'GROQ_API_KEY_PRIYA', value: process.env.GROQ_API_KEY_PRIYA },
+  { name: 'GROQ_API_KEY_SIMRAN', value: process.env.GROQ_API_KEY_SIMRAN },
+  { name: 'GROQ_API_KEY_NEHA', value: process.env.GROQ_API_KEY_NEHA },
+  { name: 'GROQ_API_KEY_ANANYA', value: process.env.GROQ_API_KEY_ANANYA },
+  { name: 'GROQ_API_KEY_DIVYA', value: process.env.GROQ_API_KEY_DIVYA },
 ];
 
 async function check() {

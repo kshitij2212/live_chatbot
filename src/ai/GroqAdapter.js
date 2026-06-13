@@ -6,10 +6,10 @@ const log = logger.child({ module: 'GroqAdapter' });
 const GROQ_API_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 const FALLBACK_MODELS = [
-  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
 ];
 
 export function createGroqAdapter(config) {
@@ -33,25 +33,53 @@ export function createGroqAdapter(config) {
 
   async function _sendRequest(messages, options = {}) {
     const activeModel = options.currentModel ?? model;
-    const body = JSON.stringify({
-      model:       activeModel,
+    
+    const isOpenRouter = trimmedApiKey?.startsWith('sk-or-');
+    const endpoint = isOpenRouter ? 'https://openrouter.ai/api/v1/chat/completions' : GROQ_API_ENDPOINT;
+
+    // Map common Groq models to OpenRouter equivalents
+    let finalModel = activeModel;
+    if (isOpenRouter) {
+      if (activeModel === 'llama-3.3-70b-versatile') {
+        finalModel = 'meta-llama/llama-3.3-70b-instruct';
+      } else if (activeModel === 'llama-3.1-70b-versatile') {
+        finalModel = 'meta-llama/llama-3.1-70b-instruct';
+      } else if (activeModel === 'llama-3.1-8b-instant') {
+        finalModel = 'meta-llama/llama-3.1-8b-instruct';
+      } else if (activeModel === 'llama3-70b-8192') {
+        finalModel = 'meta-llama/llama-3-70b-instruct';
+      } else if (activeModel === 'llama3-8b-8192') {
+        finalModel = 'meta-llama/llama-3-8b-instruct';
+      }
+    }
+
+    const bodyObj = {
+      model:       finalModel,
       messages,
       max_tokens:  options.maxTokens ?? maxTokens,
       temperature: options.temperature ?? temperature,
       stream:      false,
-    });
+    };
+
+    const headers = {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${trimmedApiKey}`,
+    };
+    if (isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://roxstarstudioz.com';
+      headers['X-Title'] = 'Roxstar AI Chatbot';
+    }
+
+    const body = JSON.stringify(bodyObj);
 
     const controller = new AbortController();
     const timer      = setTimeout(() => controller.abort(), timeoutMs);
 
     let response;
     try {
-      response = await fetch(GROQ_API_ENDPOINT, {
+      response = await fetch(endpoint, {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${trimmedApiKey}`,
-        },
+        headers,
         body,
         signal: controller.signal,
       });

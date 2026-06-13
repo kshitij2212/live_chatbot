@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import logger from './logger.js';
 
 const log = logger.child({ module: 'Database' });
@@ -57,8 +58,21 @@ export async function resolveActiveLiveSession(userId) {
     return null;
   }
   try {
-    const rows = await query(
+    // 1. Try to find active live session first
+    let rows = await query(
       "SELECT id, channelName FROM userlive WHERE userId = ? AND status = 'live' ORDER BY id DESC LIMIT 1",
+      [userId]
+    );
+    if (rows && rows.length > 0) {
+      return {
+        liveId: rows[0].id,
+        roomName: rows[0].channelName,
+      };
+    }
+
+    // 2. Fallback: Find the latest session regardless of status
+    rows = await query(
+      "SELECT id, channelName FROM userlive WHERE userId = ? ORDER BY id DESC LIMIT 1",
       [userId]
     );
     if (rows && rows.length > 0) {
@@ -73,4 +87,22 @@ export async function resolveActiveLiveSession(userId) {
   return null;
 }
 
-export default { query, resolveUser, resolveActiveLiveSession };
+export async function resolveLiveIdFromRoomName(roomName) {
+  if (!roomName) {
+    return null;
+  }
+  try {
+    const rows = await query(
+      "SELECT id FROM userlive WHERE channelName = ? ORDER BY id DESC LIMIT 1",
+      [roomName]
+    );
+    if (rows && rows.length > 0) {
+      return rows[0].id;
+    }
+  } catch (err) {
+    log.warn({ err, roomName }, 'Failed to query live ID from DB for room name');
+  }
+  return null;
+}
+
+export default { query, resolveUser, resolveActiveLiveSession, resolveLiveIdFromRoomName };

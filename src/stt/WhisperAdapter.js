@@ -10,9 +10,17 @@ const MODEL = 'whisper-large-v3-turbo';
 const GROQ_AUDIO_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 export function createWhisperAdapter(config) {
-  const { apiKey } = config;
+  let apiKey = config.apiKey?.trim();
+  const defaultApiKey = process.env.GROQ_API_KEY?.trim();
 
-  if (!apiKey?.trim()) {
+  if (apiKey?.startsWith('sk-or-') && defaultApiKey) {
+    log.info('WhisperAdapter received OpenRouter key. Falling back to GROQ_API_KEY for audio transcription...');
+    apiKey = defaultApiKey;
+  }
+
+  log.info({ keyLength: apiKey?.length, keyPrefix: apiKey?.slice(0, 10) }, 'WhisperAdapter API Key check');
+
+  if (!apiKey) {
     throw new Error('WhisperAdapter: missing required config field "apiKey"');
   }
 

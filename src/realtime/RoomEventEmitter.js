@@ -192,14 +192,6 @@ export function createRoomEventEmitter(room, config) {
   function onTrackSubscribed(track, publication, participant) {
     if (track.kind !== TrackKind.KIND_AUDIO) return;
 
-    if (ownerIdentity && participant.identity !== ownerIdentity) {
-      log.debug(
-        { identity: participant.identity, ownerIdentity },
-        'Skipping audio track — not the owner'
-      );
-      return;
-    }
-
     log.info({ trackSid: publication.sid, identity: participant.identity }, 'Audio track subscribed');
 
     bus.emit(Events.AUDIO_TRACK_ADDED, {

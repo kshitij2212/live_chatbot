@@ -8,7 +8,7 @@ function getSystemPrompt(botNames = ['Aman']) {
   
   const botNamesList = botNames.map(n => `"${n.toLowerCase()}"`).join(', ');
 
-  const otherNames = ['shashi', 'arav', 'didi', 'bhaiya', 'aman', 'shivam', 'abhishek', 'rahul']
+  const otherNames = ['shashi', 'arav', 'didi', 'bhaiya', 'aman', 'shivam', 'abhishek', 'rahul', 'priya', 'simran', 'neha', 'ananya', 'divya']
     .filter(n => !botNames.some(bn => bn.toLowerCase().includes(n.toLowerCase())));
 
   const otherName = otherNames[0] || 'Aman';

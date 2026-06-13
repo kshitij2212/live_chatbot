@@ -21,7 +21,11 @@ export function createSocketIOConnector(config) {
   if (!url) {
     throw new Error('SocketIOConnector: url is required');
   }
-  if (!liveId || !userId || !broadcasterId) {
+  if (
+    liveId === undefined || liveId === null || liveId === '' ||
+    userId === undefined || userId === null || userId === '' ||
+    broadcasterId === undefined || broadcasterId === null || broadcasterId === ''
+  ) {
     throw new Error('SocketIOConnector: liveId, userId, and broadcasterId are required in auth parameters');
   }
 

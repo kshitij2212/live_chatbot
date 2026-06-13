@@ -28,6 +28,13 @@ export function createReplyProcessor(config) {
         cleanText = cleanText + ', ma\'am';
       }
 
+      // Check if this is a system-generated message or has bypass moderation flag
+      if (trigger?.bypassModeration || trigger?.userId === 'system') {
+        log.info({ roomId, botId, text: cleanText }, 'Bypassing moderation for system/bypass-flagged reply');
+        await publishApprovedReply({ text: cleanText, trigger, usage, roomId });
+        return;
+      }
+
       const RejectQueue = getRejectQueueModel(botId);
 
       // Check if response text is blacklisted (case-insensitive exact match)

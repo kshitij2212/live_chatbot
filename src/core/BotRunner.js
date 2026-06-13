@@ -1,11 +1,12 @@
 import '../utils/patchLiveKit.js';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import mongoose from 'mongoose';
 
 import bus, { Events }                           from './EventBus.js';
 import logger                                    from '../utils/logger.js';
 import config                                    from '../../config/default.js';
-import { resolveUser, resolveActiveLiveSession } from '../utils/database.js';
+import { resolveUser, resolveActiveLiveSession, resolveLiveIdFromRoomName } from '../utils/database.js';
 
 import { createLiveKitConnector }    from '../realtime/LiveKitConnector.js';
 import { createSocketIOConnector }   from '../realtime/SocketIOConnector.js';
@@ -20,6 +21,7 @@ import { createBehaviorEngine }      from '../behavior/BehaviorEngine.js';
 import { createContextBuilder }      from '../ai/ContextBuilder.js';
 import { createPromptBuilder }       from '../ai/PromptBuilder.js';
 import { createGroqAdapter }         from '../ai/GroqAdapter.js';
+import { createOpenAIAdapter }       from '../ai/OpenAIAdapter.js';
 import { createLLMService }          from '../ai/LLMService.js';
 import { createResponseParser }      from '../ai/ResponseParser.js';
 import { createModerationService }   from '../moderation/ModerationService.js';
@@ -37,8 +39,6 @@ const log = logger.child({ module: 'BotRunner' });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ─── Bot persona definitions ─────────────────────────────────────────────────
-
 const BOT_DEFS = [
   {
     key: 'aman',
@@ -52,25 +52,58 @@ const BOT_DEFS = [
     envId: 'SOCKET_USER_ID_SHIVAM',     defaultId: '4639',
     envIdentity: 'BOT_IDENTITY_SHIVAM', defaultIdentity: 'shivam-bot',
     envName: 'BOT_DISPLAY_NAME_SHIVAM', defaultName: 'Shivam',
-    displayNameVariations: ['Shivam', 'Shivam Soni', 'soni', 'shivam', 'शिवम', 'शवाम', 'शीवम', 'शवंम', 'शेबंबाई', 'शेबं', 'शिबम', 'शिवं', 'севम', 'सेवम', 'शेबम', 'शिवन', 'शिवा', 'शे बाम', 'शेबाम'],
+    displayNameVariations: ['Shivam', 'Shivam Soni', 'soni', 'shivam', 'शिवम', 'शिवं', 'शिवाम', 'शीवम', 'शिवम्', 'शिवन', 'शिवा', 'शवाम', 'शवंम', 'शिबम', 'शेबम', 'सेवम', 'शेबं', 'शेबाम', 'शे बाम', 'शेबंबाई', 'शिवम जी', 'शिवमजी', 'शिवम सर', 'शिवम भाई', 'Shivam ji', 'shivam ji', 'शिवम सोनी', 'शीवम सोनी', 'शिवाम सोनी', 'शिवं सोनी', 'शिबम सोनी', 'सोनी', 'सोनी जी', 'सोनीजी', 'सोनी साहब', 'सोनी सर', 'शोनी', 'सोनि', 'सोनीय', 'सोनीया'],
   },
   {
     key: 'abhishek',
     envId: 'SOCKET_USER_ID_ABHISHEK',     defaultId: '4640',
     envIdentity: 'BOT_IDENTITY_ABHISHEK', defaultIdentity: 'abhishek-bot',
     envName: 'BOT_DISPLAY_NAME_ABHISHEK', defaultName: 'Abhishek',
-    displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena', 'abhishek', 'अभिषेक', 'अभिशेक', 'अभि', 'अभिशेख', 'अब्बी', 'अबे शेख', 'अबे सेख', 'अब्बी शेख'],
+    displayNameVariations: ['Abhishek', 'Abhishek Saxena', 'saxena', 'abhishek', 'अभिषेक', 'अभिशेक', 'अभि', 'अभिशेख', 'अब्बी', 'अबे शेख', 'अबे सेख', 'अब्बी शेख', 'Abhishek ji', 'abhishek ji', 'अभिषेक जी', 'अभिशेक जी', 'अभिषेक जी', 'अभिशेख जी', 'अभिषेक सर', 'अभिशेक सर', 'अभिषेक भाई', 'अभिशेक भाई', 'अभिषेक सक्सेना', 'अभिशेक सक्सेना', 'अभिषेख सक्सेना', 'अबिषेक', 'अबिशेक', 'अबीशेक', 'अबिषेख', 'अबीशेख', 'अभी', 'अभी', 'अभीषेक', 'अभीशेक', 'सक्सेना', 'सक्सेना', 'सक्सेना जी', 'सक्सेनाजी'],
   },
   {
     key: 'rahul',
     envId: 'SOCKET_USER_ID_RAHUL',     defaultId: '4641',
     envIdentity: 'BOT_IDENTITY_RAHUL', defaultIdentity: 'rahul-bot',
     envName: 'BOT_DISPLAY_NAME_RAHUL', defaultName: 'Rahul',
-    displayNameVariations: ['Rahul', 'Rahul Sharma', 'sharma', 'sherma', 'kirana', 'rahul', 'राहुल', 'राउल', 'राऊल', 'राहू', 'राहूल'],
+    displayNameVariations: ['Rahul', 'rahul', 'Raahul', 'Rahool', 'राहुल', 'राहूल', 'राहू', 'राहु', 'राउल', 'राऊल', 'राहल', 'रहुल', 'राहुला', 'राहुल जी', 'राहुलजी', 'राहुल सर', 'राहुल भैया', 'Rahul Sharma', 'rahul sharma', 'राहुल शर्मा', 'राहूल शर्मा', 'राहुल शरमा', 'राहुल सरमा', 'राउल शर्मा', 'राऊल शर्मा', 'शर्मा', 'शरमा', 'सरमा', 'सर्मा', 'शर्मा जी', 'शर्माजी'],
+  },
+  {
+    key: 'priya',
+    envId: 'SOCKET_USER_ID_PRIYA',     defaultId: '4664',
+    envIdentity: 'BOT_IDENTITY_PRIYA', defaultIdentity: 'priya-bot',
+    envName: 'BOT_DISPLAY_NAME_PRIYA', defaultName: 'Priya Sharma',
+    displayNameVariations: ['Priya', 'Priya Sharma', 'priya', 'pria', 'priyaa', 'priyaa', 'preeya', 'priyah', 'priy', 'priya ji', 'priyasharma', 'प्रिया', 'प्रिय', 'प्रीया', 'प्रीया', 'प्रिया शर्मा', 'प्रियाशर्मा', 'प्रियाजी', 'प्रिया जी', 'पिरिया', 'प्रीय', 'प्रीया', 'परिया', 'परीया', 'पिरीया', 'प्रीयाह', 'प्रियाा', 'प्रिय्या', 'प्रियाह', 'प्रिआ', 'प्रिया शरमा', 'प्रिया सरमा', 'शर्मा', 'सरमा', 'शरमा'],
+  },
+  {
+    key: 'simran',
+    envId: 'SOCKET_USER_ID_SIMRAN',     defaultId: '4655',
+    envIdentity: 'BOT_IDENTITY_SIMRAN', defaultIdentity: 'simran-bot',
+    envName: 'BOT_DISPLAY_NAME_SIMRAN', defaultName: 'Simran Kaur',
+    displayNameVariations: ['Simran', 'Simran Kaur', 'simran', 'simra', 'simar', 'samran', 'samaran', 'simrin', 'simreen', 'simron', 'simeran', 'simern', 'simraan', 'simranjeet', 'simarpreet', 'सिमरन', 'सिमरण', 'सिमरन कौर', 'सिमरण कौर', 'सिमरा', 'सिमर', 'समरन', 'समरण', 'सिम्रन', 'सिमरीन', 'सिमरीन कौर', 'सिमरोन', 'सिमन', 'सिमराण', 'सिमरां', 'सिमरांन', 'सीमरन', 'सीमरण', 'शिमरन', 'शीमरन', 'सुमिरन', 'सुमिरण', 'स्मरण', 'समिरन', 'समीरन', 'सिमरना', 'सिमरानी', 'सिमरांजीत', 'सिमरप्रीत', 'कौर', 'कोर', 'कउर', 'कौर जी'],
+  },
+  {
+    key: 'neha',
+    envId: 'SOCKET_USER_ID_NEHA',       defaultId: '4678',
+    envIdentity: 'BOT_IDENTITY_NEHA',   defaultIdentity: 'neha-bot',
+    envName: 'BOT_DISPLAY_NAME_NEHA',   defaultName: 'Neha Kapoor',
+    displayNameVariations: ['Neha', 'Neha Kapoor', 'neha', 'नेहा', 'नेहा कपूर', 'नेहा जी', 'नेहाजी', 'नेहा मैम', 'नेहा मैडम', 'नेहा दी', 'नेहा बहन', 'नेहा कपूर जी', 'नेहा कपुर', 'नेहा कपूर', 'नेहा कापूर', 'नेहा कपूर', 'नेहा कपुर', 'नेहा कापुर', 'नेहा', 'नेहाा', 'नेह', 'निहा', 'नीहा', 'नैया', 'नेया', 'नेहा जी', 'नीहा जी', 'कपूर', 'कपुर', 'कपूर', 'कापूर', 'कापुर', 'कपूर जी', 'कपूरजी'],
+  },
+  {
+    key: 'ananya',
+    envId: 'SOCKET_USER_ID_ANANYA',     defaultId: '4679',
+    envIdentity: 'BOT_IDENTITY_ANANYA', defaultIdentity: 'ananya-bot',
+    envName: 'BOT_DISPLAY_NAME_ANANYA', defaultName: 'Ananya Reddy',
+    displayNameVariations: ['Ananya', 'Ananya Reddy', 'ananya', 'अनन्या', 'अननिया', 'अनन्या रेड्डी', 'अननिया रेड्डी', 'अनन्या जी', 'अनन्याजी', 'अनन्या मैम', 'अनन्या मैडम', 'अनन्या दी', 'अनन्या बहन', 'अनन्या रेड्डी जी', 'अनन्या रेडी', 'अननिया', 'अननिया जी', 'अनन्याा', 'अनन्य', 'अनया', 'अन्या', 'अननिया', 'अनन्या', 'अनन्या जी', 'अननिया जी', 'रेड्डी', 'रेडी', 'रेड्डी जी', 'रेड्डीजी', 'रेडी', 'रेड्डी मैम'],
+  },
+  {
+    key: 'divya',
+    envId: 'SOCKET_USER_ID_DIVYA',       defaultId: '4680',
+    envIdentity: 'BOT_IDENTITY_DIVYA',   defaultIdentity: 'divya-bot',
+    envName: 'BOT_DISPLAY_NAME_DIVYA',   defaultName: 'Divya Joshi',
+    displayNameVariations: ['Divya', 'Divya Joshi', 'divya', 'दिव्या', 'दिविया', 'दिव्या जोशी', 'दिविया जोशी', 'दिव्या जी', 'दिव्याजी', 'दिव्या मैम', 'दिव्या मैडम', 'दिव्या दी', 'दिव्या बहन', 'दिव्या जोशी जी', 'दिव्या जोशी', 'दिव्या जोसी', 'दिविया', 'दिविया जी', 'दिव्याा', 'दिव्य', 'दिब्या', 'दिबिया', 'देव्या', 'दिवा', 'दिवीया', 'दिव्या जी', 'दिविया जी', 'जोशी', 'जोसी', 'जोषी', 'जोशी जी', 'जोशीजी', 'जोशी मैम'],
   },
 ];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveActiveDef(persona, botDefs) {
   return botDefs.find((def) => persona.includes(def.key)) ?? null;
@@ -97,19 +130,31 @@ function buildBlockedLists(activeDef, botDefs) {
   return { blockedUserIds, otherBotDisplayNames };
 }
 
-async function applyActiveLiveSession(broadcasterId) {
+async function applyActiveLiveSession(broadcasterId, upperKey = '') {
   try {
     const session = await resolveActiveLiveSession(broadcasterId);
     if (session) {
       log.info({ session }, 'Active live session found — overriding config');
       config.socket.liveId = session.liveId;
       if (session.roomName) config.livekit.roomName = session.roomName;
+
+      if (upperKey) {
+        try {
+          const { updateEnvValue } = await import('../utils/envHelper.js');
+          updateEnvValue(`LIVEKIT_ROOM_${upperKey}`, session.roomName);
+          updateEnvValue(`SOCKET_LIVE_ID_${upperKey}`, String(session.liveId));
+        } catch (envErr) {
+          log.warn({ envErr }, 'Failed to update .env with resolved session values');
+        }
+      }
+      return true;
     } else {
       log.warn({ broadcasterId }, 'No active live session found — using env config');
     }
   } catch (err) {
     log.error({ err }, 'Failed to query active live session — falling back to env config');
   }
+  return false;
 }
 
 // ─── BotRunner ────────────────────────────────────────────────────────────────
@@ -226,7 +271,7 @@ export function createBotRunner() {
     on(Events.REPLY_SENT, ({ roomId, trigger, text }) => {
       log.info({ roomId, text }, '✅ Reply sent');
       if (mongoConversationService) {
-        const question = typeof trigger === 'string' ? trigger : (trigger?.text || trigger?.prompt || '');
+        const question = typeof trigger === 'string' ? trigger : (trigger?.text || trigger?.prompt || (trigger ? String(trigger) : ''));
         const questionUser = trigger?.username || trigger?.userId || 'system';
         const botId = config.livekit.botPersona;
         mongoConversationService.saveQA({
@@ -350,10 +395,13 @@ export function createBotRunner() {
     const activeDef     = resolveActiveDef(activePersona, botDefs);
     const { blockedUserIds, otherBotDisplayNames } = buildBlockedLists(activeDef, botDefs);
 
+    let botKeyUpper = '';
+
     // Apply per-bot overrides from env
     if (activeDef) {
       const { key, envId, defaultId, envIdentity, defaultIdentity, envName, defaultName } = activeDef;
       const upperKey = key.toUpperCase();
+      botKeyUpper = upperKey;
 
       const specificBroadcasterEnv = `SOCKET_BROADCASTER_ID_${upperKey}`;
       if (process.env[specificBroadcasterEnv]) {
@@ -365,6 +413,11 @@ export function createBotRunner() {
         config.livekit.roomName = process.env[specificRoomEnv].trim();
       }
 
+      const specificLiveIdEnv = `SOCKET_LIVE_ID_${upperKey}`;
+      if (process.env[specificLiveIdEnv]) {
+        config.socket.liveId = Number(process.env[specificLiveIdEnv].trim());
+      }
+
       config.socket.userId          = Number(process.env[envId]       ?? defaultId);
       config.livekit.botIdentity    = process.env[envIdentity]         ?? defaultIdentity;
       config.livekit.botDisplayName = process.env[envName]             ?? defaultName;
@@ -373,9 +426,25 @@ export function createBotRunner() {
       if (process.env[botApiKeyEnv]) config.groq.apiKey = process.env[botApiKeyEnv].trim();
     }
 
+    let hasOverriddenSession = false;
     if (config.socket.broadcasterId) {
       log.info({ broadcasterId: config.socket.broadcasterId }, 'Querying active live session...');
-      await applyActiveLiveSession(config.socket.broadcasterId);
+      hasOverriddenSession = await applyActiveLiveSession(config.socket.broadcasterId, botKeyUpper);
+    }
+
+    if (!hasOverriddenSession && config.livekit.roomName) {
+      log.info({ roomName: config.livekit.roomName }, 'Aligning socket liveId with configured roomName from DB...');
+      try {
+        const resolvedLiveId = await resolveLiveIdFromRoomName(config.livekit.roomName);
+        if (resolvedLiveId) {
+          log.info({ roomName: config.livekit.roomName, resolvedLiveId }, 'Successfully aligned liveId with roomName');
+          config.socket.liveId = resolvedLiveId;
+        } else {
+          log.warn({ roomName: config.livekit.roomName }, 'Could not resolve liveId for roomName from DB, using fallback config');
+        }
+      } catch (err) {
+        log.warn({ err, roomName: config.livekit.roomName }, 'Error aligning liveId with roomName');
+      }
     }
 
     log.info('═══════════════════════════════════════════');
@@ -431,15 +500,33 @@ export function createBotRunner() {
     responseParser = createResponseParser({ maxReplyChars: 300 });
     log.debug('✓ ResponseParser');
 
-    groqAdapter = createGroqAdapter({
-      apiKey:      config.groq.apiKey,
-      model:       config.groq.model,
-      maxTokens:   config.groq.maxTokens,
-      temperature: config.groq.temperature,
-      timeoutMs:   config.groq.timeoutMs,
-      maxRetries:  config.groq.maxRetries,
-    });
-    log.debug('✓ GroqAdapter');
+    const apiKey = config.groq.apiKey;
+    const isOpenAI = apiKey?.startsWith('sk-') && !apiKey?.startsWith('sk-or-');
+    if (isOpenAI) {
+      let model = config.groq.model;
+      if (!model || (!model.startsWith('gpt-') && !model.startsWith('o1-') && !model.startsWith('o3-'))) {
+        model = 'gpt-4o-mini';
+      }
+      groqAdapter = createOpenAIAdapter({
+        apiKey,
+        model,
+        maxTokens:   config.groq.maxTokens,
+        temperature: config.groq.temperature,
+        timeoutMs:   config.groq.timeoutMs,
+        maxRetries:  config.groq.maxRetries,
+      });
+      log.info({ model }, '✓ OpenAIAdapter (loaded dynamically)');
+    } else {
+      groqAdapter = createGroqAdapter({
+        apiKey,
+        model:       config.groq.model,
+        maxTokens:   config.groq.maxTokens,
+        temperature: config.groq.temperature,
+        timeoutMs:   config.groq.timeoutMs,
+        maxRetries:  config.groq.maxRetries,
+      });
+      log.debug('✓ GroqAdapter');
+    }
 
     llm = createLLMService({ groqAdapter, responseParser });
     log.debug('✓ LLMService');
@@ -484,10 +571,12 @@ export function createBotRunner() {
     log.debug('✓ CommentListener');
 
     if (useLiveKit) {
-      const audioStage = 4;
+      const audioStage = process.env.AUDIO_PIPELINE_STAGE ? Number(process.env.AUDIO_PIPELINE_STAGE.trim()) : 0;
+      const whisperKey = process.env.WHISPER_API_KEY ?? config.groq.apiKey;
+      log.info({ keyPrefix: whisperKey?.slice(0, 15), keyLength: whisperKey?.length }, 'BotRunner: whisper key being used');
       audioPipeline = createAudioPipeline({
         stage:      audioStage,
-        groqApiKey: process.env.WHISPER_API_KEY ?? config.groq.apiKey,
+        groqApiKey: whisperKey,
         sttMinRms:  config.livekit.sttMinRms,
       });
       await audioPipeline.init();
@@ -560,13 +649,12 @@ export function createBotRunner() {
     log.debug('✓ ReplyProcessor');
 
     // Subscribe to Redis approved events for moderation
-    redisSub.subscribe('moderation:channel', (err) => {
-      if (err) {
-        log.error({ err }, 'Failed to subscribe to Redis moderation:channel');
-      } else {
-        log.info('Subscribed to Redis moderation:channel');
-      }
-    });
+    try {
+      await redisSub.subscribe('moderation:channel');
+      log.info('Subscribed to Redis moderation:channel');
+    } catch (err) {
+      log.error({ err }, 'Failed to subscribe to Redis moderation:channel');
+    }
 
     redisSub.on('message', (channel, message) => {
       if (channel === 'moderation:channel') {
@@ -580,6 +668,9 @@ export function createBotRunner() {
               usage: parsed.usage,
               roomId: parsed.roomId,
             }).catch((err) => log.error({ err }, 'Failed to process approved reply'));
+          } else if (parsed.type === 'shutdown' && parsed.botId === config.livekit.botPersona) {
+            log.info('Received shutdown command via Redis');
+            stop('Redis shutdown command').catch((err) => log.error({ err }, 'Shutdown error'));
           }
         } catch (err) {
           log.error({ err, message }, 'Failed to parse/process Redis subscription message');
@@ -718,9 +809,12 @@ Example: {"location":"Gujarat","hobbies":"singing"}`,
     await livekitConnector?.disconnect().catch((err) => log.warn({ err }, 'LiveKit disconnect error'));
     await socketIOConnector?.disconnect().catch((err) => log.warn({ err }, 'SocketIO disconnect error'));
 
-    if (redisSub?.quit) {
-      await redisSub.quit().catch((err) => log.warn({ err }, 'Redis Sub quit error'));
-      log.info('Redis Sub disconnected');
+    if (redisSub) {
+      await redisSub.unsubscribe().catch((err) => log.warn({ err }, 'Redis Sub unsubscribe error'));
+      if (redisSub.quit) {
+        await redisSub.quit().catch((err) => log.warn({ err }, 'Redis Sub quit error'));
+        log.info('Redis Sub disconnected');
+      }
     }
 
     if (redis?.quit) {
@@ -751,7 +845,7 @@ Example: {"location":"Gujarat","hobbies":"singing"}`,
 
 // ─── Signal handlers ──────────────────────────────────────────────────────────
 
-function registerSignalHandlers(runner) {
+export function registerSignalHandlers(runner) {
   let forcedExit = false;
 
   async function handleSignal(signal) {

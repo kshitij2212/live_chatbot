@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 
 function env(key, fallback) {
   const val = process.env[key];
@@ -70,7 +71,7 @@ const config = {
 
   groq: {
     apiKey:      env('GROQ_API_KEY', 'default_groq_key'),
-    model:       env('GROQ_MODEL',    'llama-3.1-8b-instant'),
+    model:       env('GROQ_MODEL',    'llama-3.3-70b-versatile'),
     maxTokens:   envInt('GROQ_MAX_TOKENS',   256),
     temperature: envFloat('GROQ_TEMPERATURE', 0.5),
     timeoutMs:   envInt('GROQ_TIMEOUT_MS',   10000),

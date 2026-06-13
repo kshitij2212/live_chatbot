@@ -64,7 +64,10 @@ export function createTranscriptProcessor(config) {
     const botName = botIdentity.split('-')[0].toLowerCase();
     if (gateCheck) {
       const gateResult = await gateCheck.check(text);
-      if (gateResult.directed !== botName && !gateResult.directed.includes(botName) && !botName.includes(gateResult.directed)) {
+      if (gateResult.directed !== botName && 
+          gateResult.directed !== 'chat' && 
+          !gateResult.directed.includes(botName) && 
+          !botName.includes(gateResult.directed)) {
         log.info({ text, directed: gateResult.directed, botName }, 'Transcript ignored — not directed to the bot');
         return;
       }
