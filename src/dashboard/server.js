@@ -115,6 +115,14 @@ async function getActiveBots() {
       const broadcasterEnvKey = `SOCKET_BROADCASTER_ID_${def.key.toUpperCase()}`;
       const broadcasterId = process.env[broadcasterEnvKey] || process.env.SOCKET_BROADCASTER_ID || '';
       
+      let autoApprove = false;
+      if (redisPub) {
+        try {
+          const val = await redisPub.get(`bot:${botId}:auto_approve`);
+          autoApprove = (val === '1');
+        } catch (e) {}
+      }
+
       allBotsMap.set(botId, {
         botId,
         displayName,
@@ -123,7 +131,8 @@ async function getActiveBots() {
         roomsCount: 0,
         rooms: [],
         status: 'offline',
-        persona: personasMap.get(botId) || null
+        persona: personasMap.get(botId) || null,
+        autoApprove
       });
     }
 
@@ -178,6 +187,14 @@ async function getActiveBots() {
         const broadcasterEnvKey = `SOCKET_BROADCASTER_ID_${keyName.toUpperCase()}`;
         const broadcasterId = process.env[broadcasterEnvKey] || process.env.SOCKET_BROADCASTER_ID || '';
         
+        let autoApprove = false;
+        if (redisPub) {
+          try {
+            const val = await redisPub.get(`bot:${botId}:auto_approve`);
+            autoApprove = (val === '1');
+          } catch (e) {}
+        }
+
         allBotsMap.set(botId, {
           botId,
           displayName: personaInfo?.displayName || botId.replace('-bot', ''),
@@ -186,7 +203,8 @@ async function getActiveBots() {
           roomsCount: activeRooms.length,
           rooms: activeRooms,
           status: activeRooms.length > 0 ? 'online' : 'offline',
-          persona: personaInfo || null
+          persona: personaInfo || null,
+          autoApprove
         });
       }
     }
@@ -491,6 +509,40 @@ io.on('connection', async (socket) => {
       callback({ success: true });
     } catch (err) {
       console.error('Error sending custom reply:', err);
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // Handle Toggle Auto-Approve
+  socket.on('action:toggle_auto_approve', async (payload, callback) => {
+    const { botId, autoApprove } = payload;
+    try {
+      if (!botId) {
+        return callback({ success: false, error: 'botId is required' });
+      }
+      const key = `bot:${botId}:auto_approve`;
+      if (autoApprove) {
+        await redisPub.set(key, '1');
+      } else {
+        await redisPub.del(key);
+      }
+
+      // Save Audit Log
+      await AuditLog.create({
+        botId,
+        action: autoApprove ? 'approve' : 'reject',
+        details: `${autoApprove ? 'Enabled' : 'Disabled'} auto-approve for bot "${botId}"`,
+      });
+
+      // Broadcast update to all clients
+      io.emit('auto_approve:status', { botId, autoApprove });
+
+      const updatedLogs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();
+      io.emit('update:logs', updatedLogs);
+
+      callback({ success: true });
+    } catch (err) {
+      console.error('Error toggling auto-approve:', err);
       callback({ success: false, error: err.message });
     }
   });

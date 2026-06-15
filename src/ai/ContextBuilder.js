@@ -79,6 +79,7 @@ export function createContextBuilder({ contextMemory, personaMemory, promptBuild
       persona,
       meta:       rawContext.meta,
       broadcasterFacts,
+      greetingCount: rawContext.greetingCount || 0,
       builtAt:    new Date().toISOString(),
     };
 

@@ -134,7 +134,7 @@ export function createJoinGreetingService(config) {
         bus.emit(Events.REPLY_READY, {
           roomId,
           text,
-          trigger: { userId: 'system', username: 'system', bypassModeration: true }
+          trigger: { userId: 'system', username: 'system', bypassModeration: false }
         });
       } catch (err) {
         log.error({ err, roomId }, 'Failed to generate join greeting');

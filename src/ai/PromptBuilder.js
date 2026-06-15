@@ -16,7 +16,7 @@ export function createPromptBuilder(config = {}) {
     broadcasterId = null,
   } = config;
 
-  function buildSystemPrompt(persona, roomContext = {}, now = new Date()) {
+  function buildSystemPrompt(persona, roomContext = {}, now = new Date(), greetingCount = 0) {
     const {
       displayName = 'Aman',
       age,
@@ -50,7 +50,7 @@ export function createPromptBuilder(config = {}) {
     }
 
     const genderLower = String(roomContext.broadcasterGender || '').toLowerCase();
-    const broadcasterAddress = genderLower === 'female' ? 'maam' : 'sir';
+    const broadcasterAddress = genderLower === 'female' ? 'ma\'am' : 'sir';
 
     const maxSentences = replyStyle.maxSentences    ?? 2;
     const useEmojis    = replyStyle.useEmojis       ?? false;
@@ -122,7 +122,10 @@ export function createPromptBuilder(config = {}) {
       `- Dialog Style Example:
   Streamer: hey
   You: hello, aap kaise ho`,
-      `- Asking Questions: Whenever the streamer (marked as "Streamer" in context) asks you any question, you must always answer their question and then immediately end your response by asking them a short, natural mini-question back (e.g., "aap batao", "aur aap kaise ho?", "aap kahan se ho?", "aur aap batao?").`,
+      greetingCount >= 1
+        ? `- Asking Questions: When the streamer (marked as "Streamer" in context) asks you a question, analyze if they are specifically asking for factual information about you (e.g., asking your name, your location, your job/occupation, or a specific detail about your backstory). If they are asking for specific information/facts about you, reply ONLY with the direct answer and do NOT ask any mini-question back. Otherwise, for general/casual chat or thoughts, answer their question and end by asking a short, natural mini-question back (e.g., "aap batao", "aur aap?", "aap kahan se ho?"). Do NOT ask them how they are doing (e.g. do NOT ask "kaise ho", "how are you", "kya haal hai") because you have already greeted them and asked how they are earlier in this live stream.`
+        : `- Asking Questions: When the streamer (marked as "Streamer" in context) asks you a question, analyze if they are specifically asking for factual information about you (e.g., asking your name, your location, your job/occupation, or a specific detail about your backstory). If they are asking for specific information/facts about you, reply ONLY with the direct answer and do NOT ask any mini-question back. Otherwise, for general/casual chat or thoughts, answer their question and end by asking a short, natural mini-question back (e.g., "aap batao", "aur aap kaise ho?", "aap kahan se ho?", "aur aap batao?").`,
+      `- Topic Depth & Privacy Limit: You are allowed to ask one general level deeper on a topic (e.g., if they say they live in Pune, you may ask "Pune mein kahan?" or "Pune mein kidhar?"). However, you must NEVER go two levels deeper to ask for specific society, apartment, building name, street, or flat number (e.g., if they say they live in Wagholi, do NOT ask "Wagholi mein kahan?", "kaunsa apartment?", "society name?", or "flat number?"). Similarly, for other topics like jobs, you can ask general questions but never ask for highly specific personal details. Keep it friendly and respect basic privacy.`,
       '- Return empty string (silent) if: (a) the user text is complete nonsense, background audio noise, or random characters (e.g., "झाल", "प्रुट"); (b) the streamer/user is just acknowledging or agreeing to something (e.g., saying "achha", "accha ab samjha", "thik hai", "ok", "got it", "cool", "sahi hai", "agree") without asking a new question or needing a response. NEVER say "main samajh nahi paa raha", "mujhe samajh nahi aaya", or reply with simple fillers like "Badhiya yaar!" to acknowledgments.',
       '- Confusing/Unclear Input: If the input is confusing, unclear, or you cannot understand what the streamer/user is saying, NEVER say "Main samajh nahi paa raha", "Aap kya keh rahe ho", or similar polite/formal phrases. Instead, directly say "matlab?" or "kya?". Keep it extremely short.',
       '- Grounding: Only reply to context in history. Never invent past events or say "pehle bhi poocha tha".',
@@ -232,7 +235,7 @@ export function createPromptBuilder(config = {}) {
 
     const systemMessage = {
       role:    'system',
-      content: buildSystemPrompt(persona, roomContext, now),
+      content: buildSystemPrompt(persona, roomContext, now, contextPayload.greetingCount || 0),
     };
 
     const rawHistory     = formatHistory(history);

@@ -28,9 +28,23 @@ export function createReplyProcessor(config) {
         cleanText = cleanText + ', ma\'am';
       }
 
-      // Check if this is a system-generated message or has bypass moderation flag
-      if (trigger?.bypassModeration || trigger?.userId === 'system') {
-        log.info({ roomId, botId, text: cleanText }, 'Bypassing moderation for system/bypass-flagged reply');
+      // Check if auto-approve is enabled for this bot in Redis
+      if (redis) {
+        try {
+          const autoApprove = await redis.get(`bot:${botId}:auto_approve`);
+          if (autoApprove === '1') {
+            log.info({ roomId, botId, text: cleanText }, 'Bypassing moderation: auto-approve is active');
+            await publishApprovedReply({ text: cleanText, trigger, usage, roomId });
+            return;
+          }
+        } catch (err) {
+          log.warn({ err, botId }, 'Failed to check auto-approve status from Redis');
+        }
+      }
+
+      // Check if bypass moderation flag is explicitly set
+      if (trigger?.bypassModeration) {
+        log.info({ roomId, botId, text: cleanText }, 'Bypassing moderation for bypass-flagged reply');
         await publishApprovedReply({ text: cleanText, trigger, usage, roomId });
         return;
       }

@@ -83,6 +83,18 @@ socket.on('update:logs', (logs) => {
   renderAuditLogs();
 });
 
+socket.on('auto_approve:status', (data) => {
+  const { botId, autoApprove } = data;
+  const bot = state.bots.find(b => b.botId === botId);
+  if (bot) {
+    bot.autoApprove = autoApprove;
+    renderBots();
+    if (state.currentBotId === botId) {
+      updateAutoApproveBtn();
+    }
+  }
+});
+
 // Real-time Event Handlers
 socket.on('moderation:new_item', (item) => {
   // Add item if not already in queue
@@ -195,6 +207,37 @@ function selectRoom(botId, roomId) {
 
 function refreshBotsData() {
   socket.emit('refresh:bots');
+}
+
+function updateAutoApproveBtn() {
+  const btn = document.getElementById('auto-approve-btn');
+  if (!btn) return;
+  const bot = state.bots.find(b => b.botId === state.currentBotId);
+  if (!bot) return;
+
+  if (bot.autoApprove) {
+    btn.textContent = '🛑 AutoApprovalStop';
+    btn.className = 'btn btn-danger btn-icon';
+  } else {
+    btn.textContent = '⚡ Auto Approve';
+    btn.className = 'btn btn-warning btn-icon';
+  }
+}
+
+function toggleAutoApprove() {
+  const botId = state.currentBotId;
+  if (!botId) return;
+
+  const bot = state.bots.find(b => b.botId === botId);
+  if (!bot) return;
+
+  const targetState = !bot.autoApprove;
+  
+  socket.emit('action:toggle_auto_approve', { botId, autoApprove: targetState }, (res) => {
+    if (!res.success) {
+      alert('Failed to toggle auto-approve: ' + res.error);
+    }
+  });
 }
 
 function updateBroadcasterId(botId, btnElement) {
@@ -606,6 +649,7 @@ function updateModerationView() {
   breadcrumbBot.onclick = () => selectBot(state.currentBotId);
   breadcrumbRoom.textContent = state.currentRoomId;
   updateBroadcasterMeta();
+  updateAutoApproveBtn();
 
   // Render console content
 

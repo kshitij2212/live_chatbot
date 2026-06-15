@@ -5,6 +5,7 @@ export const keys = {
   meta:        (botId, roomId) => `bot:${botId}:context:${roomId}:meta`,
   cooldown:    (botId, roomId) => `bot:${botId}:context:${roomId}:cooldown`,
   insights:    (botId, roomId) => `bot:${botId}:context:${roomId}:insights`,
+  greetingCount: (botId, roomId) => `bot:${botId}:context:${roomId}:greeting_count`,
 };
 
 export const limits = {

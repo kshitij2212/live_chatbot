@@ -64,6 +64,16 @@ export function createContextMemory(redis, config = {}) {
       entry.promptText = typeof trigger === 'string' ? trigger : (trigger.text || trigger.prompt || '');
       entry.promptUser = trigger.username || trigger.userId || 'system';
     }
+
+    const GREETING_QUESTION_REGEX = /(kaise\s+ho|kaise\s+hain|kya\s+haal|how\s+are\s+you|how\s+r\s+u)/i;
+    if (GREETING_QUESTION_REGEX.test(text) || (entry.promptText && GREETING_QUESTION_REGEX.test(entry.promptText))) {
+      try {
+        await incrementGreetingCount(roomId);
+      } catch (err) {
+        log.warn({ err, roomId }, 'Failed to increment greeting count in Redis');
+      }
+    }
+
     await pushToList(
       keys.botReplies(botId, getRoomKey(roomId)),
       entry,
@@ -101,14 +111,34 @@ export function createContextMemory(redis, config = {}) {
     return result === 1;
   }
 
+  async function getGreetingCount(roomId) {
+    try {
+      const val = await redis.get(keys.greetingCount(botId, getRoomKey(roomId)));
+      return val ? parseInt(val, 10) : 0;
+    } catch (err) {
+      log.warn({ err, roomId }, 'Failed to get greeting count from Redis');
+      return 0;
+    }
+  }
+
+  async function incrementGreetingCount(roomId) {
+    const key = keys.greetingCount(botId, getRoomKey(roomId));
+    await redis
+      .pipeline()
+      .incr(key)
+      .expire(key, ttl)
+      .exec();
+  }
+
   async function getAll(roomId) {
-    const [transcripts, comments, botReplies, meta] = await Promise.all([
+    const [transcripts, comments, botReplies, meta, greetingCountVal] = await Promise.all([
       getTranscripts(roomId),
       getComments(roomId),
       getBotReplies(roomId),
       getMeta(roomId),
+      getGreetingCount(roomId),
     ]);
-    return { transcripts, comments, botReplies, meta };
+    return { transcripts, comments, botReplies, meta, greetingCount: greetingCountVal };
   }
 
   async function setInsights(roomId, insights) {
@@ -145,9 +175,10 @@ export function createContextMemory(redis, config = {}) {
       keys.comments(botId, getRoomKey(roomId)),
       keys.botReplies(botId, getRoomKey(roomId)),
       keys.meta(botId, getRoomKey(roomId)),
-      keys.cooldown(botId, getRoomKey(roomId))
+      keys.cooldown(botId, getRoomKey(roomId)),
+      keys.greetingCount(botId, getRoomKey(roomId))
     );
-    log.debug({ roomId: getRoomKey(roomId) }, 'Room context cleared (insights preserved)');
+    log.debug({ roomId: getRoomKey(roomId) }, 'Room context cleared (insights and greeting count reset)');
   }
 
   async function setBroadcasterFacts(broadcasterId, facts) {
@@ -178,5 +209,7 @@ export function createContextMemory(redis, config = {}) {
     getInsights,
     setBroadcasterFacts,
     getBroadcasterFacts,
+    getGreetingCount,
+    incrementGreetingCount,
   };
 }
