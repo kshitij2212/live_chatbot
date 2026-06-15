@@ -4,6 +4,13 @@ FROM node:20-slim
 # Create and set the working directory
 WORKDIR /app
 
+# Install build dependencies for native modules (node-pty)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 

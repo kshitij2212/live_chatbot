@@ -10,7 +10,8 @@ const state = {
   currentTab: 'pending', // pending, held, blacklist, audit
   questionSet: null,
   qsetGender: 'Female',
-  qsetCategory: 'General'
+  qsetCategory: 'General',
+  botTimerInterval: null
 };
 
 // Connect to Socket.IO Server
@@ -135,15 +136,38 @@ function navigateTo(page) {
     section.classList.remove('active');
   });
 
+  const navBots = document.getElementById('nav-bots');
+  const navTerminal = document.getElementById('nav-terminal');
+
+  if (page !== 'moderation') {
+    if (state.botTimerInterval) {
+      clearInterval(state.botTimerInterval);
+      state.botTimerInterval = null;
+    }
+    const timerPill = document.getElementById('timer-pill');
+    if (timerPill) timerPill.style.display = 'none';
+  }
+
   if (page === 'bots') {
     document.getElementById('page-bots').classList.add('active');
     state.currentBotId = null;
     state.currentRoomId = null;
+    if (navBots) navBots.classList.add('active');
+    if (navTerminal) navTerminal.classList.remove('active');
   } else if (page === 'rooms') {
     document.getElementById('page-rooms').classList.add('active');
     state.currentRoomId = null;
+    if (navBots) navBots.classList.add('active');
+    if (navTerminal) navTerminal.classList.remove('active');
   } else if (page === 'moderation') {
     document.getElementById('page-moderation').classList.add('active');
+    if (navBots) navBots.classList.add('active');
+    if (navTerminal) navTerminal.classList.remove('active');
+  } else if (page === 'terminal') {
+    document.getElementById('page-terminal').classList.add('active');
+    if (navBots) navBots.classList.remove('active');
+    if (navTerminal) navTerminal.classList.add('active');
+    initTerminal();
   }
 }
 
@@ -494,6 +518,51 @@ function updateBroadcasterMeta() {
     updateQSetFilterButtons();
   }
   renderQuestionSet();
+  startBotUptimeTimer(room?.joinedAt);
+}
+
+function startBotUptimeTimer(joinedAt) {
+  // Clear any existing timer
+  if (state.botTimerInterval) {
+    clearInterval(state.botTimerInterval);
+    state.botTimerInterval = null;
+  }
+
+  const timerPill = document.getElementById('timer-pill');
+  const timerVal = document.getElementById('bot-timer');
+  if (!timerPill || !timerVal) return;
+
+  if (!joinedAt) {
+    timerPill.style.display = 'none';
+    return;
+  }
+
+  timerPill.style.display = 'inline-flex';
+
+  const startTime = new Date(joinedAt).getTime();
+
+  function updateTimer() {
+    const elapsedMs = Date.now() - startTime;
+    if (elapsedMs < 0) {
+      timerVal.textContent = '00:00';
+      return;
+    }
+
+    const totalSecs = Math.floor(elapsedMs / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const seconds = totalSecs % 60;
+
+    let displayStr = '';
+    if (hours > 0) {
+      displayStr += String(hours).padStart(2, '0') + ':';
+    }
+    displayStr += String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    timerVal.textContent = displayStr;
+  }
+
+  updateTimer(); // run once immediately
+  state.botTimerInterval = setInterval(updateTimer, 1000);
 }
 
 function syncCustomReplyHeight() {
@@ -705,9 +774,17 @@ function moderationAction(queueId, action) {
   const botId = item ? item.botId : null;
 
   const card = document.getElementById(`card-${queueId}`);
+  let newAnswer = undefined;
+  if (card) {
+    const textarea = card.querySelector('.edit-answer-input');
+    if (textarea) {
+      newAnswer = textarea.value.trim();
+    }
+  }
+
   if (card) card.style.opacity = '0.5';
 
-  socket.emit('action:moderation', { queueId, botId, action }, (res) => {
+  socket.emit('action:moderation', { queueId, botId, action, newAnswer }, (res) => {
     if (!res.success) {
       alert('Failed to execute action: ' + res.error);
       if (card) card.style.opacity = '1';
@@ -976,6 +1053,113 @@ function directSendQuestion(text, btnElement) {
       }, 1500);
     }
   });
+}
+
+// Web Terminal Integration
+let term = null;
+let fitAddon = null;
+
+function initTerminal() {
+  const container = document.getElementById('terminal-container');
+  if (!container) return;
+
+  // If already initialized, just fit and focus
+  if (term) {
+    setTimeout(() => {
+      try {
+        fitAddon.fit();
+        term.focus();
+      } catch (e) {}
+    }, 100);
+    return;
+  }
+
+  // Create terminal instance
+  term = new Terminal({
+    cursorBlink: true,
+    theme: {
+      background: '#000000',
+      foreground: '#f3f4f6',
+      cursor: '#6366f1',
+      selectionBackground: 'rgba(99, 102, 241, 0.3)',
+      black: '#000000',
+      red: '#ef4444',
+      green: '#10b981',
+      yellow: '#f59e0b',
+      blue: '#3b82f6',
+      magenta: '#8b5cf6',
+      cyan: '#06b6d4',
+      white: '#f3f4f6'
+    },
+    fontSize: 14,
+    fontFamily: 'monospace'
+  });
+
+  fitAddon = new window.FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(container);
+
+  // Focus terminal
+  setTimeout(() => {
+    try {
+      fitAddon.fit();
+      term.focus();
+    } catch (e) {}
+  }, 100);
+
+  // Send terminal data to server
+  term.onData((data) => {
+    socket.emit('terminal:input', data);
+  });
+
+  // Handle window resizing
+  window.addEventListener('resize', () => {
+    try {
+      if (fitAddon && term) {
+        fitAddon.fit();
+        socket.emit('terminal:resize', {
+          cols: term.cols,
+          rows: term.rows
+        });
+      }
+    } catch (e) {}
+  });
+
+  // Resize when terminal dimensions are determined
+  setTimeout(() => {
+    try {
+      socket.emit('terminal:resize', {
+        cols: term.cols,
+        rows: term.rows
+      });
+    } catch (e) {}
+  }, 200);
+}
+
+// Receive terminal data from server
+socket.on('terminal:data', (data) => {
+  if (term) {
+    term.write(data);
+  }
+});
+
+function clearTerminal() {
+  if (term) {
+    term.clear();
+    term.focus();
+  }
+}
+
+function reconnectTerminal() {
+  if (term) {
+    term.dispose();
+    term = null;
+  }
+  const container = document.getElementById('terminal-container');
+  if (container) container.innerHTML = '';
+  
+  // Reload terminal connection
+  initTerminal();
 }
 
 // Trigger initial scan of active bots

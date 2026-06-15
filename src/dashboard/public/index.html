@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <!-- xterm.js for interactive web terminal -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 </head>
 <body>
 
@@ -20,6 +24,10 @@
           <span>AI BOT ADMIN PANEL</span>
         </div>
       </div>
+      <nav class="app-nav">
+        <button class="nav-tab active" id="nav-bots" onclick="navigateTo('bots')">🤖 Bots & Streams</button>
+        <button class="nav-tab" id="nav-terminal" onclick="navigateTo('terminal')">🖥️ Terminal Console</button>
+      </nav>
       <div class="connection-status" id="connection-status">
         <span class="status-indicator warning"></span>
         <span class="status-text">Connecting...</span>
@@ -41,6 +49,23 @@
             <div class="spinner"></div>
             <p>Scanning active bots on Redis...</p>
           </div>
+        </div>
+      </section>
+
+      <section id="page-terminal" class="page-section">
+        <div class="section-header">
+          <h2>Interactive Terminal</h2>
+          <p>Run server commands, launch/manage bots, view process logs, or update configurations directly on the server</p>
+        </div>
+        <div class="card terminal-card">
+          <div class="terminal-header">
+            <div class="terminal-title">🖥️ Shell console</div>
+            <div class="terminal-actions">
+              <button class="btn btn-sm btn-secondary" onclick="clearTerminal()">Clear</button>
+              <button class="btn btn-sm btn-secondary" onclick="reconnectTerminal()">Reset Terminal</button>
+            </div>
+          </div>
+          <div id="terminal-container"></div>
         </div>
       </section>
 
@@ -80,6 +105,10 @@
                 <span class="meta-pill">
                   <span class="meta-label">Gender</span>
                   <span class="meta-value" id="broadcaster-gender">Unknown</span>
+                </span>
+                <span class="meta-pill" id="timer-pill" style="display: none;">
+                  <span class="meta-label">Uptime</span>
+                  <span class="meta-value" id="bot-timer">00:00</span>
                 </span>
               </div>
             </div>

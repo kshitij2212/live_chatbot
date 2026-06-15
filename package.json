@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node --max-old-space-size=4096 --expose-gc src/core/BotRunner.js",
-    "dashboard": "node src/dashboard/server.js",
+    "dashboard": "node --watch src/dashboard/server.js",
     "dev": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js",
     "dev:aman": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js aman",
     "dev:shivam": "node --max-old-space-size=4096 --expose-gc --watch src/core/BotRunner.js shivam",
@@ -28,6 +28,7 @@
     "mongodb": "^6.8.0",
     "mongoose": "^9.7.0",
     "mysql2": "^3.22.5",
+    "node-pty": "^1.1.0",
     "p-queue": "^9.3.0",
     "pino": "^9.6.0",
     "socket.io": "^4.8.3",

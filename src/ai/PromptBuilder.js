@@ -50,9 +50,7 @@ export function createPromptBuilder(config = {}) {
     }
 
     const genderLower = String(roomContext.broadcasterGender || '').toLowerCase();
-    const broadcasterAddress = genderLower === 'female' ? "ma'am" : 
-                               genderLower === 'male'   ? 'bhai' : 
-                               'yaar';
+    const broadcasterAddress = genderLower === 'female' ? 'maam' : 'sir';
 
     const maxSentences = replyStyle.maxSentences    ?? 2;
     const useEmojis    = replyStyle.useEmojis       ?? false;

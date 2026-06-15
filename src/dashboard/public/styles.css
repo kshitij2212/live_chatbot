@@ -1263,3 +1263,86 @@ body {
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-md);
 }
+
+/* Navigation Tab Bar in Header */
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 2rem;
+  flex: 1;
+}
+
+.nav-tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-tab:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.nav-tab.active {
+  color: #fff;
+  background-color: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+/* Terminal Card Styling */
+.terminal-card {
+  display: flex;
+  flex-direction: column;
+  background-color: #0b0f19;
+  border: 1px solid var(--border-color);
+  padding: 0;
+  overflow: hidden;
+  height: calc(100vh - 250px);
+  min-height: 480px;
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #111823;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.terminal-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.terminal-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#terminal-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0.75rem;
+  background-color: #000;
+  overflow: hidden;
+}
+
+/* Custom adjustment for xterm container */
+.xterm {
+  padding: 0.25rem;
+}

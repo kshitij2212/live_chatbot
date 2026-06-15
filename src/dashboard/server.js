@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
+import pty from 'node-pty';
 
 import config from '../../config/default.js';
 import { getRejectQueueModel } from '../memory/models/ModerationQueue.js';
@@ -266,6 +267,36 @@ async function parseQuestionSet() {
 // Socket.IO Connection Handler
 io.on('connection', async (socket) => {
   console.log('Admin client connected:', socket.id);
+
+  // Spawn pseudo-terminal (PTY) for the socket connection
+  const shell = process.platform === 'win32' ? 'powershell.exe' : (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  const ptyProcess = pty.spawn(shell, [], {
+    name: 'xterm-color',
+    cols: 80,
+    rows: 24,
+    cwd: process.cwd(),
+    env: process.env
+  });
+
+  ptyProcess.onData((data) => {
+    socket.emit('terminal:data', data);
+  });
+
+  socket.on('terminal:input', (data) => {
+    try {
+      if (ptyProcess) ptyProcess.write(data);
+    } catch (e) {
+      console.error('Error writing to terminal:', e);
+    }
+  });
+
+  socket.on('terminal:resize', ({ cols, rows }) => {
+    try {
+      if (ptyProcess) ptyProcess.resize(cols, rows);
+    } catch (e) {
+      console.error('Error resizing terminal:', e);
+    }
+  });
 
   // Send initial data
   try {
@@ -575,23 +606,33 @@ io.on('connection', async (socket) => {
         return callback({ success: false, error: 'Bot is already running or launching' });
       }
       
-      console.log(`[Launch] Starting bot: ${keyName} in new macOS Terminal window`);
-      
-      const commandToRun = `cd ~/Desktop/Roxstar/ai_chatbot && npm run dev ${keyName}`;
-      
-      const appleScript = `tell application "Terminal"
-        do script "${commandToRun}"
-        activate
-      end tell`;
-      
-      const child = spawn('osascript', ['-e', appleScript], {
-        detached: true,
-        stdio: 'ignore'
-      });
+      let child;
+      if (process.platform === 'darwin') {
+        console.log(`[Launch] Starting bot: ${keyName} in new macOS Terminal window`);
+        const commandToRun = `cd ${process.cwd()} && npm run dev ${keyName}`;
+        const appleScript = `tell application "Terminal"
+          do script "${commandToRun}"
+          activate
+        end tell`;
+        child = spawn('osascript', ['-e', appleScript], {
+          detached: true,
+          stdio: 'ignore'
+        });
+      } else {
+        console.log(`[Launch] Starting bot: ${keyName} as a background process`);
+        child = spawn('node', [
+          '--max-old-space-size=4096',
+          '--expose-gc',
+          'src/core/BotRunner.js',
+          keyName
+        ], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env }
+        });
+      }
       
       child.unref();
-      // Since AppleScript returns quickly after opening the window, we set the process in runningBots
-      // to prevent spamming launch. In a production environment with proper heartbeat checking, this maps cleanly.
       runningBots.set(botId, child);
       
       child.on('close', () => {
@@ -666,6 +707,11 @@ io.on('connection', async (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Admin client disconnected:', socket.id);
+    try {
+      if (ptyProcess) ptyProcess.kill();
+    } catch (e) {
+      console.error('Error killing ptyProcess:', e);
+    }
   });
 });
 
