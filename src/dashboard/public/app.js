@@ -551,15 +551,12 @@ function updateBroadcasterMeta() {
   nameEl.textContent = profile.name;
   genderEl.textContent = profile.gender;
 
-  if (profile.gender && profile.gender !== 'Unknown') {
-    const lowerGender = profile.gender.toLowerCase();
-    if (lowerGender.includes('female') || lowerGender === 'f') {
-      state.qsetGender = 'Female';
-    } else if (lowerGender.includes('male') || lowerGender === 'm') {
-      state.qsetGender = 'Male';
-    }
-    updateQSetFilterButtons();
-  }
+  const botId = state.currentBotId || '';
+  const femaleBotNames = ['priya', 'simran', 'neha', 'ananya', 'divya'];
+  const isFemaleBot = femaleBotNames.some(name => botId.toLowerCase().includes(name));
+  state.qsetGender = isFemaleBot ? 'Female' : 'Male';
+
+  updateQSetFilterButtons();
   renderQuestionSet();
   startBotUptimeTimer(room?.joinedAt);
 }
@@ -741,10 +738,12 @@ function renderQueueCard(item) {
       </div>
 
       <div class="qa-layout">
+        ${item.question ? `
         <div class="qa-row">
           <span class="qa-label">Question:</span>
           <div class="qa-bubble question">"${escapeHtml(item.question)}"</div>
         </div>
+        ` : ''}
         <div class="qa-row">
           <span class="qa-label">Answer:</span>
           ${answerHtml}
@@ -826,9 +825,19 @@ function moderationAction(queueId, action) {
     }
   }
 
+  let blacklistPhrase = undefined;
+  if (action === 'blacklist') {
+    const defaultPhrase = newAnswer || (item ? item.answer : '');
+    const phrase = prompt("Enter word or phrase to blacklist (any generated response containing this will be blocked):", defaultPhrase);
+    if (phrase === null) {
+      return; // cancelled
+    }
+    blacklistPhrase = phrase.trim() || defaultPhrase;
+  }
+
   if (card) card.style.opacity = '0.5';
 
-  socket.emit('action:moderation', { queueId, botId, action, newAnswer }, (res) => {
+  socket.emit('action:moderation', { queueId, botId, action, newAnswer, blacklistPhrase }, (res) => {
     if (!res.success) {
       alert('Failed to execute action: ' + res.error);
       if (card) card.style.opacity = '1';

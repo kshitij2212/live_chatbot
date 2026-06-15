@@ -55,6 +55,19 @@ export function createGroqGateCheck({ groqAdapter, botNames = ['Aman'] }) {
   const systemPrompt = getSystemPrompt(namesArray);
 
   async function check(text) {
+    const lowerText = text.toLowerCase();
+    const matchesBotName = namesArray.some(name => {
+      const cleanName = name.toLowerCase().trim();
+      if (!cleanName) return false;
+      const re = new RegExp(`\\b${cleanName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+      return re.test(lowerText);
+    });
+
+    if (matchesBotName) {
+      log.info({ text, botName: primaryBotName }, `Local check matched bot name/alias — bypassing Groq gate`);
+      return { directed: botLower };
+    }
+
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user',   content: text },

@@ -51,13 +51,16 @@ export function createReplyProcessor(config) {
 
       const RejectQueue = getRejectQueueModel(botId);
 
-      // Check if response text is blacklisted (case-insensitive exact match)
-      const isBlacklisted = await Blacklist.findOne({
-        phrase: { $regex: new RegExp('^' + cleanText.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '$', 'i') }
+      // Check if response text contains any blacklisted phrase/word (case-insensitive substring match)
+      const blacklist = await Blacklist.find({}).lean();
+      const matchedPhrase = blacklist.find(item => {
+        const phrase = item.phrase?.trim()?.toLowerCase();
+        if (!phrase) return false;
+        return cleanText.toLowerCase().includes(phrase);
       });
 
-      if (isBlacklisted) {
-        log.warn({ roomId, botId, text: cleanText }, 'Generated response matches blacklisted phrase — blocking automatically');
+      if (matchedPhrase) {
+        log.warn({ roomId, botId, text: cleanText, blockedBy: matchedPhrase.phrase }, 'Generated response contains blacklisted phrase — blocking automatically');
         await RejectQueue.create({
           botId,
           roomId,

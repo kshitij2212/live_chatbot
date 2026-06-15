@@ -346,7 +346,7 @@ io.on('connection', async (socket) => {
 
   // Handle Moderation Action (Approve, Reject, Hold, Blacklist)
   socket.on('action:moderation', async (payload, callback) => {
-    const { queueId, botId, action, newAnswer } = payload;
+    const { queueId, botId, action, newAnswer, blacklistPhrase } = payload;
     try {
       if (!botId) {
         return callback({ success: false, error: 'botId is required' });
@@ -441,10 +441,12 @@ io.on('connection', async (socket) => {
         item.actionedAt = new Date();
         await item.save();
 
+        const phraseToBlacklist = (blacklistPhrase && blacklistPhrase.trim()) || item.answer;
+
         // Add to Blacklist DB
         await Blacklist.updateOne(
-          { phrase: item.answer },
-          { $set: { phrase: item.answer, addedAt: new Date() } },
+          { phrase: phraseToBlacklist },
+          { $set: { phrase: phraseToBlacklist, addedAt: new Date() } },
           { upsert: true }
         );
 
@@ -453,7 +455,7 @@ io.on('connection', async (socket) => {
           botId: item.botId,
           roomId: item.roomId,
           action: 'blacklist',
-          details: `Blacklisted sentence and blocked reply: "${item.answer}"`,
+          details: `Blacklisted sentence and blocked reply: "${phraseToBlacklist}"`,
         });
 
         // Notify client about blacklist update
@@ -484,23 +486,34 @@ io.on('connection', async (socket) => {
         return callback({ success: false, error: 'botId, roomId, and text are required' });
       }
 
-      // Publish approved response to Redis pub/sub channel moderation:channel
-      // Passing trigger with question as null, and questionUser as admin
-      await redisPub.publish('moderation:channel', JSON.stringify({
-        type: 'approved',
+      const RejectQueue = getRejectQueueModel(botId);
+      const queueItem = await RejectQueue.create({
         botId,
         roomId,
-        text: text.trim(),
+        question: '', // Empty question for custom message
+        answer: text.trim(),
+        status: 'pending',
         trigger: { text: null, username: 'admin', userId: 'admin' },
         usage: { prompt_tokens: 0, completion_tokens: 0 }
-      }));
+      });
 
       // Save Audit Log
       await AuditLog.create({
         botId,
         roomId,
-        action: 'approve',
-        details: `Sent custom reply: "${text.trim()}"`,
+        action: 'edit',
+        details: `Created custom reply in queue: "${text.trim()}"`,
+      });
+
+      // Notify all clients about the new queue item
+      io.emit('moderation:new_item', {
+        _id: queueItem._id,
+        botId,
+        roomId,
+        question: queueItem.question,
+        answer: queueItem.answer,
+        status: queueItem.status,
+        timestamp: queueItem.timestamp,
       });
 
       const updatedLogs = await AuditLog.find({}).sort({ timestamp: -1 }).limit(100).lean();

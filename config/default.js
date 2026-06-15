@@ -114,8 +114,9 @@ const config = {
     maxLength:            envInt('FILTER_MAX_LENGTH',             500),
     rateLimitWindowMs:    envInt('FILTER_RATE_LIMIT_WINDOW_MS',   10000),
     rateLimitMaxMessages: envInt('FILTER_RATE_LIMIT_MAX_MESSAGES', 5),
-    blocklistPhrases:     env('BLOCKLIST_PHRASES', 'matlab,scene').split(',').map(s => s.trim()).filter(Boolean),
   },
+
+  blacklistWords: ['yaar', 'scene'],
 
   logging: {
     level: env('LOG_LEVEL', 'info'),

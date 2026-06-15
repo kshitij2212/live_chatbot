@@ -475,12 +475,18 @@ export function createBotRunner() {
       baseReplyProbability: config.behavior.replyProbability,
       maxRepliesPerMinute:  6,
       botId:                config.livekit.botPersona,
+      botNames: [
+        config.livekit.botDisplayName,
+        config.livekit.botIdentity,
+        ...(activeDef?.displayNameVariations ?? []),
+      ].filter(Boolean),
     });
     log.debug('✓ BehaviorEngine');
 
     promptBuilder = createPromptBuilder({
       historyTokenBudget: config.prompt.historyTokenBudget,
       broadcasterId:      config.socket.broadcasterId,
+      blacklistWords:     config.blacklistWords,
     });
     log.debug('✓ PromptBuilder');
 
@@ -560,7 +566,6 @@ export function createBotRunner() {
       maxLength:            config.commentFilter.maxLength,
       rateLimitWindowMs:    config.commentFilter.rateLimitWindowMs,
       rateLimitMaxMessages: config.commentFilter.rateLimitMaxMessages,
-      blocklistPhrases:     config.commentFilter.blocklistPhrases,
       blockedUserIds,
       botNames:             [config.livekit.botDisplayName, config.livekit.botIdentity].filter(Boolean),
       otherBotNames:        otherBotDisplayNames,

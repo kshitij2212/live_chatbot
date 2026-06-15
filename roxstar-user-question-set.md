@@ -3,8 +3,8 @@
 ### General
 1. aap kis city se ho?
 6. aap live kab-kab aati ho?
-7. kya main apne family members ko app me invite kar sakta hu?
-8. kkya main apne doston ko app me invite kar sakta hu?
+7. kya main apne family members ko app me invite kar sakti hu?
+8. kya main apne doston ko app me invite kar sakti hu?
 9. is app me kya-kya features hain?
 11. Aapka favourite singer kaunsa hai?
 17. Aapki simplicity sabse alag hai
@@ -20,9 +20,9 @@
 4. app me live experience aapko kaisa lagta hai?
 5. app me party room singing experience aapko kaisa lagta hai?
 10. Kya live singing se kuch benefit milta hai?
-12. Abhi kaunse songs aap pasand kar rhe hai?
+12. Abhi kaunse songs aap pasand kar rahi ho?
 13. Koi romantic gaana ho jaye please 
-14. Aapko kis cheez ka sabse zyada shock hai?
+14. Aapko kis cheez ka sabse zyada shauk hai?
 15. Pichhle live kaafi mast tha, yaad aa gaya
 16. Aapke live ka wait rehta hai
 18. Aap sach mein dil jeet leti ho
@@ -40,7 +40,6 @@
 55. Aaj ka live kaafi engaging hai
 56. Aap se milke achha laga
 57. Keep shining always
-
 
 
 
@@ -67,9 +66,9 @@
 4. app me live experience aapko kaisa lagta hai?
 5. app me party room singing experience aapko kaisa lagta hai?
 10. kya live singing se kuch benefit milta hai?
-12. Abhi kaunse songs aap pasand kar rhe hai?
+12. Abhi kaunse songs aap pasand kar rahe ho?
 13. Koi romantic gaana ho jaye please 
-14. Aapko kis cheez ka sabse zyada shock hai?
+14. Aapko kis cheez ka sabse zyada shauk hai?
 15. Pichhle live kaafi mast tha, yaad aa gaya
 16. Aapke live ka wait rehta hai
 18. Aap sach mein dil jeet lete ho

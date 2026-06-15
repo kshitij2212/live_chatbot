@@ -27,6 +27,7 @@ const personaSchema = new mongoose.Schema({
   college: { type: String },
   politicalViews: { type: String },
   backstory: { type: String, required: true },
+  occupationExample: { type: String },
   avoid: [{ type: String }],
   replyStyle: { type: replyStyleSchema, required: true },
   remarks: { type: String },
