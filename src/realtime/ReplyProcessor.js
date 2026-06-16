@@ -3,6 +3,7 @@ import logger          from '../utils/logger.js';
 import { sleep }       from '../utils/sleep.js';
 import { getRejectQueueModel } from '../memory/models/ModerationQueue.js';
 import { Blacklist }       from '../memory/models/Blacklist.js';
+import appConfig       from '../../config/default.js';
 
 const log = logger.child({ module: 'ReplyProcessor' });
 
@@ -24,7 +25,9 @@ export function createReplyProcessor(config) {
       const broadcasterGender = roomMeta?.broadcasterGender?.toLowerCase() || '';
 
       // If broadcaster is female, append "ma'am" if not already present
-      if (broadcasterGender === 'female' && !cleanText.toLowerCase().includes('ma\'am')) {
+      // If broadcaster is female, append "ma'am" if not already present (only for first interaction/greeting)
+      const greetingCount = contextPayload?.greetingCount || 0;
+      if (greetingCount < 1 && broadcasterGender === 'female' && !cleanText.toLowerCase().includes('ma\'am')) {
         cleanText = cleanText + ', ma\'am';
       }
 
@@ -53,14 +56,23 @@ export function createReplyProcessor(config) {
 
       // Check if response text contains any blacklisted phrase/word (case-insensitive substring match)
       const blacklist = await Blacklist.find({}).lean();
-      const matchedPhrase = blacklist.find(item => {
+      let matchedPhrase = blacklist.find(item => {
         const phrase = item.phrase?.trim()?.toLowerCase();
         if (!phrase) return false;
         return cleanText.toLowerCase().includes(phrase);
-      });
+      })?.phrase;
+
+      if (!matchedPhrase && appConfig.blacklistWords) {
+        matchedPhrase = appConfig.blacklistWords.find(word => {
+          const w = word.trim().toLowerCase();
+          if (!w) return false;
+          const re = new RegExp(`(?:\\b|\\s|^)${w.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?:\\b|\\s|$)`, 'i');
+          return re.test(cleanText);
+        });
+      }
 
       if (matchedPhrase) {
-        log.warn({ roomId, botId, text: cleanText, blockedBy: matchedPhrase.phrase }, 'Generated response contains blacklisted phrase — blocking automatically');
+        log.warn({ roomId, botId, text: cleanText, blockedBy: matchedPhrase }, 'Generated response contains blacklisted phrase — blocking automatically');
         await RejectQueue.create({
           botId,
           roomId,

@@ -116,7 +116,7 @@ const config = {
     rateLimitMaxMessages: envInt('FILTER_RATE_LIMIT_MAX_MESSAGES', 5),
   },
 
-  blacklistWords: ['yaar', 'scene'],
+  blacklistWords: ['yaar', 'scene', 'bhai', 'bhaiya', 'didi', 'behen', 'bro', 'sister', 'brother'],
 
   logging: {
     level: env('LOG_LEVEL', 'info'),
