@@ -107,6 +107,8 @@ const config = {
     replyProbability:   envFloat('REPLY_PROBABILITY',      1.0),
 
     botNameAliases:     env('BOT_NAME_ALIASES', '').split(',').map(s => s.trim()).filter(Boolean),
+
+    enableCommentReplies: env('ENABLE_COMMENT_REPLIES', 'false') === 'true',
   },
 
   commentFilter: {

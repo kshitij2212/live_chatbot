@@ -10,6 +10,7 @@ export function createCommentProcessor(config) {
   if (!behavior) throw new Error('CommentProcessor: behavior is required');
 
   async function onCommentAccepted({ roomId, userId, username, text }) {
+    if (!config.enableCommentReplies) return;
     if (!text?.trim()) return;
     log.debug({ roomId, username, text }, '💬 Comment accepted');
     try {

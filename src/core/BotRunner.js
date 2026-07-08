@@ -613,6 +613,7 @@ export function createBotRunner() {
         userId:               config.socket.userId,
         broadcasterId:        config.socket.broadcasterId,
         redis,
+        enableCommentReplies: config.behavior.enableCommentReplies,
       });
       log.debug('✓ SocketIOConnector');
     }
@@ -640,7 +641,11 @@ export function createBotRunner() {
       log.debug('✓ TranscriptProcessor');
     }
 
-    commentProcessor = createCommentProcessor({ context, behavior });
+    commentProcessor = createCommentProcessor({
+      context,
+      behavior,
+      enableCommentReplies: config.behavior.enableCommentReplies,
+    });
     commentProcessor.init();
     log.debug('✓ CommentProcessor');
 

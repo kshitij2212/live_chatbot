@@ -16,6 +16,7 @@ export function createSocketIOConnector(config) {
     broadcasterId,
     redis,
     eventBus = defaultBus,
+    enableCommentReplies = false,
   } = config;
 
   if (!url) {
@@ -180,6 +181,9 @@ export function createSocketIOConnector(config) {
         }
 
         if (payload.type !== 'CHAT_MESSAGE') {
+          return;
+        }
+        if (!enableCommentReplies) {
           return;
         }
 
